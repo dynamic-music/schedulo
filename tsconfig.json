@@ -5,7 +5,11 @@
         "declaration": true,
         "module": "commonjs",
         "moduleResolution": "node",
-        "strict": true
+        "strict": true,
+        "lib": [
+            "dom",
+            "es2015"
+        ]
     },
     "include": [
         "src/**/*"
