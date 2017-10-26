@@ -1,0 +1,20 @@
+{
+  "name": "schedulo",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "contributors": [
+    "Lucas Thompson",
+    "Florian Thalmann"
+  ],
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^2.5.3"
+  },
+  "dependencies": {
+    "rxjs": "^5.5.2",
+    "tone": "^0.11.11"
+  }
+}
