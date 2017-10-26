@@ -7,7 +7,7 @@ export interface AudioEvent extends SchedulerEvent {
 	fileUris: string[]
 }
 export interface TriggerEvent extends SchedulerEvent {
-  trigger: Function
+  trigger: () => any
 }
 
 export interface Time {
@@ -45,6 +45,12 @@ export interface StoppingMode {}
 export interface Immediate extends StoppingMode {}
 export interface Fade extends StoppingMode {
   duration: Time | Beat | Bar
+}
+
+export interface ScheduledObject {}
+export interface AudioObject {
+  setAmplitude: (value: number) => void,
+  setReverb: (amount: number) => void
 }
 
 export interface Scheduler {
