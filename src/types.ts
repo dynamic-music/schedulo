@@ -15,13 +15,16 @@ export interface Bar {
 export interface SchedulingTime {}
 export interface StartImmediately extends SchedulingTime {}
 export interface StartAt extends SchedulingTime {
-  time: Time | Beat | Bar
+  time: number
 }
 export interface StartNext extends SchedulingTime {
   next: Beat | Bar
 }
 
-export interface PlaybackMode {}
+export interface PlaybackMode {
+  onset?: number,
+  duration?: number
+}
 export interface Oneshot extends PlaybackMode {}
 export interface Loop extends PlaybackMode {
   times?: number
@@ -39,8 +42,11 @@ export interface Fade extends StoppingMode {
   duration: Time | Beat | Bar
 }
 
-export interface ScheduledObject {}
-export interface AudioObject {
+export interface ScheduledObject {
+  startTime: number,
+  duration?: number
+}
+export interface AudioObject extends ScheduledObject {
   setAmplitude: (value: number) => void,
   setReverb: (amount: number) => void
 }
