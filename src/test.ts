@@ -1,19 +1,7 @@
-import * as Tone from 'tone';
+import { Schedulo } from './schedulo';
 
-const kick = new Tone.Player({
-  url: "./loops/amen.wav",
-  loop: true,
-  loopStart: 1.0,
-  loopEnd: 3.0,
-}).toMaster().sync().start(1.0);
-
-var snare = new Tone.Player({
-  url : "./loops/bass.m4a",
-  loop : true
-}).toMaster().sync().start(1.0, 2.0, 3.0);
-
-Tone.Transport.loop = true;
-Tone.Transport.loopStart = 6.0;
-Tone.Transport.loopEnd = 7.5;
-
-Tone.Transport.start("+0.1");
+let schedulo = new Schedulo();
+schedulo.scheduleAudio(["./loops/1.m4a", "./loops/2.m4a"], {}, {});
+schedulo.scheduleEvent(() => console.log("EVENT"), {}, {});
+schedulo.setLoop(0.5, 2.0);
+schedulo.start();
