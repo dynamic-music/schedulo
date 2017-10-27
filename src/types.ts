@@ -2,19 +2,11 @@ import { Observable } from 'rxjs';
 
 export type SchedulerId = number;
 
-export interface SchedulerEvent {}
-export interface AudioEvent extends SchedulerEvent {
-	fileUris: string[]
-}
-export interface TriggerEvent extends SchedulerEvent {
-  trigger: () => any
-}
-
 export interface Time {
-	time: number;
+  time: number;
 }
 export interface Beat {
-	beat: number;
+  beat: number;
 }
 export interface Bar {
   bar: number;
@@ -26,7 +18,7 @@ export interface StartAt extends SchedulingTime {
   time: Time | Beat | Bar
 }
 export interface StartNext extends SchedulingTime {
-  time: Beat | Bar
+  next: Beat | Bar
 }
 
 export interface PlaybackMode {}
@@ -55,17 +47,22 @@ export interface AudioObject {
 
 export interface Scheduler {
 
-  start(event: SchedulerEvent, time: SchedulingTime, mode: PlaybackMode): SchedulerId;
-  startAfter(id: SchedulerId, event: SchedulerEvent, mode: PlaybackMode): SchedulerId;
+  setTempo(bpm: number): void;
+  setMeter(numerator: number, denominator: number): void;
 
-  transitionTo(event: SchedulerEvent, time: SchedulingTime, transitionMode: TransitionMode, playbackMode: PlaybackMode): SchedulerId;
+  scheduleAudio(fileUris: string[], time: SchedulingTime, mode: PlaybackMode): SchedulerId;
+  scheduleAudioAfter(id: SchedulerId, fileUris: string[], mode: PlaybackMode): SchedulerId;
+  scheduleEvent(trigger: () => any, time: SchedulingTime, mode: PlaybackMode): SchedulerId;
+  scheduleEventAfter(id: SchedulerId, trigger: () => any, mode: PlaybackMode): SchedulerId;
 
-  replace(id: SchedulerId, time: SchedulingTime, mode: PlaybackMode): SchedulerId;
+  transitionToAudio(fileUris: string[], time: SchedulingTime, transitionMode: TransitionMode, playbackMode: PlaybackMode): SchedulerId;
+
+  replaceAudio(id: SchedulerId, time: SchedulingTime, mode: PlaybackMode): SchedulerId;
 
   stop(id: SchedulerId, time: SchedulingTime, mode: StoppingMode): void;
   stopAll(time: SchedulingTime, mode: StoppingMode): void;
 
-  watch(id: SchedulerId): Observable<SchedulerEvent>; //TODO change
+  //watch(id: SchedulerId): Observable<?>; //TODO change
 
   getCurrentTime(): number;
   getCurrentBeat(): number;
