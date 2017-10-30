@@ -9,20 +9,25 @@ class TonejsScheduledObject implements ScheduledObject {
   constructor(public tonejsObjects: any[], public startTime: Time, public duration: Time) {}
 }
 
-interface ScheduloPlayerOptions {
-  url: string,
-  startTime: Time,
-  loop: boolean,
-  offset?: Time,
-  duration?: Time,
-  onload?: () => any,
-  playbackRate?: number
+type Player = any; // TODO write definitions in Tone.d.ts
+interface ScheduleOptions {
+  startTime: Time;
+  offset?: Time;
+  duration?: Time;
+}
+
+interface SubsetPlayerOptions {
+  url: string;
+  loop: boolean;
+  onload?: (player: Player) => void;
+  playbackRate?: number;
 }
 
 export class Schedulo {
 
   private scheduledObjects: TonejsScheduledObject[] = [];
   private currentId = 0;
+  private filenameCache = new Map<String, AudioBuffer>();
 
   setLoop(start: number, stop: number): void {
     Tone.Transport.loop = true;
@@ -47,10 +52,11 @@ export class Schedulo {
     let loop = mode instanceof LoopMode ? true : false;
     let players = await Promise.all(fileUris.map(f =>
       this.createTonePlayer({
-        url: f,
         startTime: time,
         offset: mode.offset,
-        duration: mode.duration,
+        duration: mode.duration
+      }, {
+        url: f,
         loop: loop
       })
     ));
@@ -79,11 +85,40 @@ export class Schedulo {
     return this.currentId++;
   }
 
-  private createTonePlayer(options: ScheduloPlayerOptions): Promise<any> {
+  private createTonePlayer(
+    scheduleOpts: ScheduleOptions,
+    playerOpts: SubsetPlayerOptions
+  ): Promise<Player> {
     return new Promise(resolve => {
-      options.onload = resolve;
-      new Tone.Player(options).toMaster().sync()
-        .start(options.startTime, options.offset, options.duration);
+      const {startTime, offset, duration} = scheduleOpts;
+      const {url, onload = () => {}, ...otherOpts} = playerOpts;
+
+      if (this.filenameCache.has(url)) {
+        const buffer = new Tone.Buffer(
+          this.filenameCache.get(url),
+          (buffer: any) => { 
+            const player = new Tone.Player(buffer);
+            const {loop = false, playbackRate = 1} = otherOpts;
+            player.loop = loop;
+            player.playbackRate = playbackRate;
+            player.toMaster().sync().start(startTime, offset, duration);
+            // if we already have the buffer, manually resolve
+            // (Tone.js doesn't call onload for Buffers)
+            resolve(player);
+          }
+        );
+      } else {
+        playerOpts.onload = player => {
+          onload(player);
+          this.filenameCache.set(url, player.buffer.get());
+          resolve(player);
+        };
+        new Tone.Player(playerOpts).toMaster().sync().start(
+          startTime,
+          offset,
+          duration
+        );
+      }
     }
     );
   }
