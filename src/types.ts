@@ -57,10 +57,18 @@ export module Playback {
 
 //transition mode
 
-export interface TransitionMode {}
-export interface TransitionImmediately extends TransitionMode {}
-export interface Crossfade extends TransitionMode {
-  duration: Time
+export class TransitionMode {
+  private _:TransitionMode; //avoid confusion with any
+}
+export class TransitionImmediately extends TransitionMode {}
+export class TransitionWithCrossfade extends TransitionMode {
+  constructor(public duration: Time) { super(); }
+}
+export module Transition {
+  export const Immediately = new TransitionImmediately();
+  export function CrossFade(duration: Time): TransitionWithCrossfade {
+    return new TransitionWithCrossfade(duration);
+  }
 }
 
 //stopping mode
@@ -100,11 +108,10 @@ export interface Scheduler {
   scheduleAudio(audioFiles: string[], startTime: StartTime, mode: PlaybackMode): Promise<SchedulerId>;
   scheduleEvent(trigger: () => any, startTime: StartTime): Promise<SchedulerId>;
 
-  transitionTo(audioFiles: string[], startTime: StartTime, transitionMode: TransitionMode, playbackMode: PlaybackMode): SchedulerId;
+  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: StartTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId>;
 
   //replaceAudio(audioFiles: string[], id: SchedulerId, startTime: StartTime, mode: PlaybackMode): SchedulerId;
 
   stop(id: SchedulerId, time: StartTime, mode: StoppingMode): void;
-  stopAll(time: StartTime, mode: StoppingMode): void;
 
 }

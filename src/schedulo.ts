@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { Time as ToneTime } from 'tone';
 import { Scheduler, SchedulerId, ScheduledObject, Time, TimeType,
   StartTime, StartAt, StartNext, StartIn, StartAfter,
-  PlaybackMode, LoopMode,  TransitionMode,
+  PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut } from './types';
 
 class TonejsScheduledObject implements ScheduledObject {
@@ -64,9 +64,20 @@ export class Schedulo {
     return this.addScheduledObject(new TonejsScheduledObject(players, time, duration));
   }
 
-  /*transitionTo(audioFiles: string[], time: StartTime, transitionMode: TransitionMode, playbackMode: PlaybackMode): SchedulerId {
-
-  }*/
+  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: StartTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId> {
+    let time = this.calculateStartTime(startTime);
+    let duration = mode instanceof TransitionWithCrossfade ? mode.duration : 0;
+    let objects = this.scheduledObjects[fromId].tonejsObjects;
+    return this.scheduleAudio(toAudioFiles, startTime, playbackMode)
+      .then(id => {
+        this.scheduledObjects[id].tonejsObjects.forEach(o => {
+          o.volume.value = -Infinity;
+          o.volume.linearRampTo(0, duration, time);
+        });
+        objects.forEach(o => o.volume.linearRampTo(-Infinity, duration, time));
+        return id;
+      })
+  }
 
   scheduleEvent(trigger: () => any, startTime: StartTime): SchedulerId {
     let time = this.calculateStartTime(startTime);
@@ -96,7 +107,7 @@ export class Schedulo {
       if (this.filenameCache.has(url)) {
         const buffer = new Tone.Buffer(
           this.filenameCache.get(url),
-          (buffer: any) => { 
+          (buffer: any) => {
             const player = new Tone.Player(buffer);
             const {loop = false, playbackRate = 1} = otherOpts;
             player.loop = loop;

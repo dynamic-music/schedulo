@@ -1,16 +1,21 @@
-import { Schedulo, Playback, Start, Stop, TimeType } from './index';
+import { Schedulo, Playback, Start, Stop, Transition, TimeType } from './index';
 
-testStopping();
+testTransition();
+
+async function testTransition() {
+  let schedulo = new Schedulo();
+  schedulo.start();
+  let id = await schedulo.scheduleAudio(["./loops/long1.m4a"], Start.At(1), Playback.Oneshot());
+  schedulo.transition(id, ["./loops/long2.m4a"], Start.At(4), Transition.CrossFade(8), Playback.Oneshot());
+}
 
 async function testStopping() {
   let schedulo = new Schedulo();
   schedulo.start();
   let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Start.Immediately, Playback.Oneshot());
   schedulo.stop(id, Start.At(0.5), Stop.Immediately);
-  setTimeout(async()=> {
-    let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Start.Immediately, Playback.Oneshot());
-    schedulo.stop(id, Start.Immediately, Stop.FadeOut(4));
-  }, 800)
+  id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Start.At(0.8), Playback.Oneshot());
+  schedulo.stop(id, Start.At(0.8), Stop.FadeOut(4));
 }
 
 async function testSubdiv() {
