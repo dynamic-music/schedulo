@@ -14,13 +14,13 @@ type BarsBeatsSixteenths = string;
 type Notation = string;
 
 interface TimeBase {
-  add(val: Time, units?: string): TimeBase;
-  clone(): TimeBase;
+  add(val: Time, units?: string): this;
+  clone(): this;
   dispose(): void;
-  div(val: Time, units?: string): TimeBase;
-  mult(val: Time, units?: string): TimeBase;
-  set(exprString: string): TimeBase;
-  sub(val: Time, units?: string): TimeBase;
+  div(val: Time, units?: string): this;
+  mult(val: Time, units?: string): this;
+  set(exprString: string): this;
+  sub(val: Time, units?: string): this;
   valueOf(): number;
 }
 
