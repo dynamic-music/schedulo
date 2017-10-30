@@ -8,6 +8,16 @@ declare module 'tone' {
 type Tone = {
   Time: TimeConstructor;
   TimeBase: TimeBaseConstructor;
+  Transport: {
+    seconds: number,
+    loop: boolean,
+    loopStart: number,
+    loopEnd: number,
+    bpm: { value: number },
+    timeSignature: number | number[],
+    nextSubdivision: (t: string | number) => number,
+    start: (t: string) => void
+  };
 };
 
 type BarsBeatsSixteenths = string;
