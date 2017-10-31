@@ -1,2 +1,2 @@
 export { Schedulo } from './schedulo';
-export { Playback, Start, Stop, Transition, TimeType } from './types';
+export { Playback, Time, Stop, Transition, Subdivision } from './types';

@@ -1,36 +1,36 @@
 export type SchedulerId = number;
-export type Time = number | string;
-export enum TimeType { Beat, Bar }
+export type StrOrNumTime = number | string;
+export enum Subdivision { Beat, Bar }
 
-//start time
+//start StrOrNumTime
 
-export abstract class StartTime { private _:StartTime; } //avoid confusion with any
-export class StartImmediately extends StartTime {}
-export class StartAt extends StartTime {
-  constructor(public at: Time) { super(); }
+export abstract class ScheduleTime { private _:ScheduleTime; } //avoid confusion with any
+export class ScheduleImmediately extends ScheduleTime {}
+export class ScheduleAt extends ScheduleTime {
+  constructor(public at: StrOrNumTime) { super(); }
 }
-export class StartNext extends StartTime {
-  constructor(public next: TimeType) { super(); }
+export class ScheduleNext extends ScheduleTime {
+  constructor(public next: Subdivision) { super(); }
 }
-export class StartIn extends StartTime {
-  constructor(public inn: Time) { super(); }
+export class ScheduleIn extends ScheduleTime {
+  constructor(public inn: StrOrNumTime) { super(); }
 }
-export class StartAfter extends StartTime {
+export class ScheduleAfter extends ScheduleTime {
   constructor(public id: SchedulerId) { super(); }
 }
-export module Start {
-  export const Immediately = new StartImmediately();
-  export function At(time: Time): StartAt {
-    return new StartAt(time);
+export module Time {
+  export const Immediately = new ScheduleImmediately();
+  export function At(time: StrOrNumTime): ScheduleAt {
+    return new ScheduleAt(time);
   }
-  export function Next(time: TimeType): StartNext {
-    return new StartNext(time);
+  export function Next(time: Subdivision): ScheduleNext {
+    return new ScheduleNext(time);
   }
-  export function In(time: Time): StartIn {
-    return new StartIn(time);
+  export function In(time: StrOrNumTime): ScheduleIn {
+    return new ScheduleIn(time);
   }
-  export function After(id: SchedulerId): StartAfter {
-    return new StartAfter(id);
+  export function After(id: SchedulerId): ScheduleAfter {
+    return new ScheduleAfter(id);
   }
 }
 
@@ -38,19 +38,19 @@ export module Start {
 
 export class PlaybackMode {
   private _:PlaybackMode; //avoid confusion with any
-  constructor(public offset?: Time, public duration?: Time) {}
+  constructor(public offset?: StrOrNumTime, public duration?: StrOrNumTime) {}
 }
 export class OneshotMode extends PlaybackMode {}
 export class LoopMode extends PlaybackMode {
-  constructor(public times?: number, offset?: Time, duration?: Time) {
+  constructor(public StrOrNumTimes?: number, offset?: StrOrNumTime, duration?: StrOrNumTime) {
     super(offset, duration);
   }
 }
 export module Playback {
-  export function Oneshot(offset?: Time, duration?: Time): OneshotMode {
+  export function Oneshot(offset?: StrOrNumTime, duration?: StrOrNumTime): OneshotMode {
     return new OneshotMode(offset, duration);
   }
-  export function Loop(times?: number, offset?: Time, duration?: Time): LoopMode {
+  export function Loop(times?: number, offset?: StrOrNumTime, duration?: StrOrNumTime): LoopMode {
     return new LoopMode(times, offset, duration);
   }
 }
@@ -62,11 +62,11 @@ export class TransitionMode {
 }
 export class TransitionImmediately extends TransitionMode {}
 export class TransitionWithCrossfade extends TransitionMode {
-  constructor(public duration: Time) { super(); }
+  constructor(public duration: StrOrNumTime) { super(); }
 }
 export module Transition {
   export const Immediately = new TransitionImmediately();
-  export function CrossFade(duration: Time): TransitionWithCrossfade {
+  export function CrossFade(duration: StrOrNumTime): TransitionWithCrossfade {
     return new TransitionWithCrossfade(duration);
   }
 }
@@ -78,11 +78,11 @@ export class StoppingMode {
 }
 export class StopImmediately extends StoppingMode {}
 export class StopWithFadeOut extends StoppingMode {
-  constructor(public duration: Time) { super(); }
+  constructor(public duration: StrOrNumTime) { super(); }
 }
 export module Stop {
   export const Immediately = new StopImmediately();
-  export function FadeOut(duration: Time): StopWithFadeOut {
+  export function FadeOut(duration: StrOrNumTime): StopWithFadeOut {
     return new StopWithFadeOut(duration);
   }
 }
@@ -90,8 +90,8 @@ export module Stop {
 //scheduled object
 
 export interface ScheduledObject {
-  startTime: Time,
-  duration?: Time
+  startTime: StrOrNumTime,
+  duration?: StrOrNumTime
 }
 export interface AudioObject extends ScheduledObject {
   setAmplitude: (value: number) => void,
@@ -105,13 +105,13 @@ export interface Scheduler {
   setTempo(bpm: number): void;
   setMeter(numerator: number, denominator: number): void;
 
-  scheduleAudio(audioFiles: string[], startTime: StartTime, mode: PlaybackMode): Promise<SchedulerId>;
-  scheduleEvent(trigger: () => any, startTime: StartTime): Promise<SchedulerId>;
+  scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<SchedulerId>;
+  scheduleEvent(trigger: () => any, startTime: ScheduleTime): SchedulerId;
 
-  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: StartTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId>;
+  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId>;
 
-  //replaceAudio(audioFiles: string[], id: SchedulerId, startTime: StartTime, mode: PlaybackMode): SchedulerId;
+  //replaceAudio(audioFiles: string[], id: SchedulerId, startTime: ScheduleTime, mode: PlaybackMode): SchedulerId;
 
-  stop(id: SchedulerId, time: StartTime, mode: StoppingMode): void;
+  stop(id: SchedulerId, StrOrNumTime: ScheduleTime, mode: StoppingMode): void;
 
 }
