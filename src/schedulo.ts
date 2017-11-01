@@ -1,19 +1,19 @@
 import * as Tone from 'tone';
 import { Time } from 'tone';
-import { Scheduler, SchedulerId, ScheduledObject, StrOrNumTime, Subdivision,
+import { Scheduler, SchedulerId, ScheduledObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut } from './types';
 
 class TonejsScheduledObject implements ScheduledObject {
-  constructor(public tonejsObjects: any[], public startTime: StrOrNumTime, public duration: StrOrNumTime) {}
+  constructor(public tonejsObjects: any[], public startTime: string | number, public duration: string | number) {}
 }
 
 type Player = any; // TODO write definitions in Tone.d.ts
 interface ScheduleOptions {
-  startTime: StrOrNumTime;
-  offset?: StrOrNumTime;
-  duration?: StrOrNumTime;
+  startTime: string | number;
+  offset?: string | number;
+  duration?: string | number;
 }
 
 interface SubsetPlayerOptions {
@@ -134,7 +134,7 @@ export class Schedulo implements Scheduler {
     );
   }
 
-  private calculateScheduleTime(time: ScheduleTime): StrOrNumTime {
+  private calculateScheduleTime(time: ScheduleTime): string | number {
     if (time instanceof ScheduleAfter) {
       return this.calculateEndTime(time.id);
     } else if (time instanceof ScheduleAt) {
@@ -149,7 +149,7 @@ export class Schedulo implements Scheduler {
     }
   }
 
-  private calculateEndTime(id: SchedulerId): StrOrNumTime {
+  private calculateEndTime(id: SchedulerId): string | number {
     const {startTime, duration = 0} = this.scheduledObjects[id];
     return new Time(startTime).add(new Time(duration)).toSeconds();
   }
