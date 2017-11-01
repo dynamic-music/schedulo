@@ -97,8 +97,24 @@ export class Schedulo implements Scheduler {
     playerOpts: SubsetPlayerOptions
   ): Promise<Player> {
     return new Promise(resolve => {
-      const {startTime, offset, duration} = scheduleOpts;
+      const {startTime, offset = 0} = scheduleOpts;
       const {url, onload = () => {}, ...otherOpts} = playerOpts;
+
+      const calculateDuration = (
+        buffer: AudioBuffer,
+        {duration} = scheduleOpts
+      ): number => {
+        return duration ?
+          new Time(duration).toSeconds() :
+          buffer.duration - new Time(offset).toSeconds();
+      };
+
+      const setLoopPoints = (player: Player /*TODO Type*/, duration: number) => {
+        if (playerOpts.loop) {
+          player.loopStart = new Time(offset).toSeconds();
+          player.loopEnd = new Time(duration).add(new Time(offset)).toSeconds();
+        }
+      }
 
       if (this.filenameCache.has(url)) {
         const buffer = new Tone.Buffer(
@@ -108,7 +124,13 @@ export class Schedulo implements Scheduler {
             const {loop = false, playbackRate = 1} = otherOpts;
             player.loop = loop;
             player.playbackRate = playbackRate;
-            player.toMaster().sync().start(startTime, offset, duration);
+            const duration = calculateDuration(buffer.get());
+            setLoopPoints(player, duration)
+            player.toMaster().sync().start(
+              startTime,
+              offset,
+              duration
+            );
             // if we already have the buffer, manually resolve
             // (Tone.js doesn't call onload for Buffers)
             resolve(player);
@@ -118,16 +140,18 @@ export class Schedulo implements Scheduler {
         playerOpts.onload = player => {
           onload(player);
           this.filenameCache.set(url, player.buffer.get());
+          const duration = calculateDuration(player.buffer.get());
+          setLoopPoints(player, duration);
+          player.toMaster().sync().start(
+            startTime,
+            offset,
+            duration
+          );
           resolve(player);
         };
-        new Tone.Player(playerOpts).toMaster().sync().start(
-          startTime,
-          offset,
-          duration
-        );
+        new Tone.Player(playerOpts);
       }
-    }
-    );
+    });
   }
 
   private calculateScheduleTime(time: ScheduleTime): string | number {
