@@ -1,19 +1,16 @@
 import * as Tone from 'tone';
 import { Time } from 'tone';
-import { Scheduler, SchedulerId, ScheduledObject, StrOrNumTime, Subdivision,
+import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
-  StoppingMode, StopWithFadeOut } from './types';
-
-class TonejsScheduledObject implements ScheduledObject {
-  constructor(public tonejsObjects: any[], public startTime: StrOrNumTime, public duration: StrOrNumTime) {}
-}
+  StoppingMode, StopWithFadeOut, Parameter } from './types';
+import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 
 type Player = any; // TODO write definitions in Tone.d.ts
 interface ScheduleOptions {
-  startTime: StrOrNumTime;
-  offset?: StrOrNumTime;
-  duration?: StrOrNumTime;
+  startTime: string | number;
+  offset?: string | number;
+  duration?: string | number;
 }
 
 interface SubsetPlayerOptions {
@@ -47,7 +44,7 @@ export class Schedulo implements Scheduler {
     Tone.Transport.start("+0.1");
   }
 
-  async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<SchedulerId> {
+  async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
     let loop = mode instanceof LoopMode ? true : false;
     let players = await Promise.all(fileUris.map(f =>
@@ -60,40 +57,39 @@ export class Schedulo implements Scheduler {
         loop: loop
       })
     ));
-    let duration = mode.duration ? mode.duration : Math.max(...players.map(p => p.buffer.duration));
-    return this.addScheduledObject(new TonejsScheduledObject(players, time, duration));
+    //TODO TAKE CARE OF DURATION WHEN LOOP NUMBER OF TIMES!!!!
+    let objects = players.map(p => new TonejsAudioObject(p, time,
+      mode.duration ? mode.duration : mode.offset ? this.sub(p.buffer.duration, mode.offset) : p.buffer.duration
+    ));
+    this.scheduledObjects = this.scheduledObjects.concat(objects);
+    return objects;
   }
 
-  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId> {
+  transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
     let duration = mode instanceof TransitionWithCrossfade ? mode.duration : 0;
-    let objects = this.scheduledObjects[fromId].tonejsObjects;
     return this.scheduleAudio(toAudioFiles, startTime, playbackMode)
-      .then(id => {
-        this.scheduledObjects[id].tonejsObjects.forEach(o => {
-          o.volume.value = -Infinity;
-          o.volume.linearRampTo(0, duration, time);
+      .then(obj => {
+        //fade in
+        obj.forEach(o => {
+          o.set(Parameter.Amplitude, -Infinity);
+          o.ramp(Parameter.Amplitude, 0, duration, time);
         });
-        objects.forEach(o => o.volume.linearRampTo(-Infinity, duration, time));
-        return id;
+        //fade out
+        from.forEach(o => o.ramp(Parameter.Amplitude, -Infinity, duration, time));
+        return obj;
       })
   }
 
-  scheduleEvent(trigger: () => any, time: ScheduleTime): SchedulerId {
+  scheduleEvent(trigger: () => any, time: ScheduleTime): EventObject {
     let startTime = this.calculateScheduleTime(time);
-    return this.addScheduledObject(new Tone.Event(trigger).start(startTime));
+    return new TonejsEventObject(new Tone.Event(trigger).start(startTime), startTime);
   }
 
-  stop(id: SchedulerId, time: ScheduleTime, mode: StoppingMode): void {
+  stopAudio(objects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void {
     let stopTime = this.calculateScheduleTime(time);
     let duration = mode instanceof StopWithFadeOut ? mode.duration : 0;
-    let objects = this.scheduledObjects[id].tonejsObjects;
-    objects.forEach(o => o.volume.linearRampTo(-Infinity, duration, stopTime));
-  }
-
-  private addScheduledObject(object: TonejsScheduledObject): SchedulerId {
-    this.scheduledObjects[this.currentId] = object;
-    return this.currentId++;
+    objects.forEach(o => o.ramp(Parameter.Amplitude, -Infinity, duration, stopTime));
   }
 
   private createTonePlayer(
@@ -134,9 +130,9 @@ export class Schedulo implements Scheduler {
     );
   }
 
-  private calculateScheduleTime(time: ScheduleTime): StrOrNumTime {
+  private calculateScheduleTime(time: ScheduleTime): string | number {
     if (time instanceof ScheduleAfter) {
-      return this.calculateEndTime(time.id);
+      return this.calculateEndTime(time.objects);
     } else if (time instanceof ScheduleAt) {
       return time.at;
     } else if (time instanceof ScheduleNext) {
@@ -149,9 +145,17 @@ export class Schedulo implements Scheduler {
     }
   }
 
-  private calculateEndTime(id: SchedulerId): StrOrNumTime {
-    const {startTime, duration = 0} = this.scheduledObjects[id];
-    return new Time(startTime).add(new Time(duration)).toSeconds();
+  private calculateEndTime(objects: ScheduledObject[]): string | number {
+    let endTimes = objects.map(({startTime, duration = 0}) => this.add(startTime, duration));
+    return Math.max(...endTimes);
+  }
+
+  private add(t1: string | number, t2: string | number): number {
+    return new Time(t1).add(new Time(t2)).toSeconds();
+  }
+
+  private sub(t1: string | number, t2: string | number): number {
+    return new Time(t1).sub(new Time(t2)).toSeconds();
   }
 
 }

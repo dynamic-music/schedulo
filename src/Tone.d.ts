@@ -8,16 +8,8 @@ declare module 'tone' {
 type Tone = {
   Time: TimeConstructor;
   TimeBase: TimeBaseConstructor;
-  Transport: {
-    seconds: number,
-    loop: boolean,
-    loopStart: number,
-    loopEnd: number,
-    bpm: { value: number },
-    timeSignature: number | number[],
-    nextSubdivision: (t: string | number) => number,
-    start: (t: string) => void
-  };
+  Transport: ToneTransport;
+  Player: PlayerConstructor;
 };
 
 type BarsBeatsSixteenths = string;
@@ -53,4 +45,33 @@ interface TimeBaseConstructor {
 
 interface TimeConstructor {
   new(val: string | number, units?: string): Time;
+}
+
+interface ToneTransport {
+  seconds: number,
+  loop: boolean,
+  loopStart: number,
+  loopEnd: number,
+  bpm: { value: number },
+  timeSignature: number | number[],
+  nextSubdivision(t: string | number): number,
+  start(t: string): void
+}
+
+interface Signal {
+  value: number,
+  linearRampTo(value: number, duration: string | number, stopTime: string | number): void
+}
+
+type Buffer = any;
+
+interface PlayerConstructor {
+  new(buffer: string | Buffer): Player;
+}
+
+interface Player {
+  volume: Signal,
+  loop: boolean,
+  playbackRate: number;
+  toMaster(): any;
 }
