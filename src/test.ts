@@ -1,6 +1,6 @@
 import { Schedulo, Playback, Time, Stop, Transition, Subdivision } from './index';
 
-testTransition();
+testLongFileChop();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -13,9 +13,9 @@ async function testStopping() {
   let schedulo = new Schedulo();
   schedulo.start();
   let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.Immediately, Playback.Oneshot());
-  schedulo.stop(id, Time.At(0.5), Stop.Immediately);
+  schedulo.stopAudio(id, Time.At(0.5), Stop.Immediately);
   id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(0.8), Playback.Oneshot());
-  schedulo.stop(id, Time.At(0.8), Stop.FadeOut(4));
+  schedulo.stopAudio(id, Time.At(0.8), Stop.FadeOut(4));
 }
 
 async function testSubdiv() {

@@ -1,5 +1,6 @@
-export type SchedulerId = number;
 export enum Subdivision { Beat, Bar }
+
+//schedule time
 
 export abstract class ScheduleTime { private _:ScheduleTime; } //avoid confusion with any
 export class ScheduleImmediately extends ScheduleTime {}
@@ -13,7 +14,7 @@ export class ScheduleIn extends ScheduleTime {
   constructor(public inn: string | number) { super(); }
 }
 export class ScheduleAfter extends ScheduleTime {
-  constructor(public id: SchedulerId) { super(); }
+  constructor(public objects: ScheduledObject[]) { super(); }
 }
 export module Time {
   export const Immediately = new ScheduleImmediately();
@@ -26,8 +27,8 @@ export module Time {
   export function In(time: string | number): ScheduleIn {
     return new ScheduleIn(time);
   }
-  export function After(id: SchedulerId): ScheduleAfter {
-    return new ScheduleAfter(id);
+  export function After(objects: ScheduledObject[]): ScheduleAfter {
+    return new ScheduleAfter(objects);
   }
 }
 
@@ -86,14 +87,23 @@ export module Stop {
 
 //scheduled object
 
+export enum Parameter {
+  Amplitude,
+  Reverb,
+  Loop
+}
 export interface ScheduledObject {
   startTime: string | number,
   duration?: string | number
+  //etc
 }
 export interface AudioObject extends ScheduledObject {
-  setAmplitude: (value: number) => void,
-  setReverb: (amount: number) => void
+  set(param: Parameter, value: number): void,
+  ramp(param: Parameter, value: number, duration: number | string, time: number | string): void,
+  //???stop(time: ScheduleTime, mode: StoppingMode): void
+  //etc
 }
+export interface EventObject extends ScheduledObject {}
 
 //scheduler
 
@@ -102,8 +112,13 @@ export interface Scheduler {
   setTempo(bpm: number): void;
   setMeter(numerator: number, denominator: number): void;
 
-  scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<SchedulerId>;
-  scheduleEvent(trigger: () => any, startTime: ScheduleTime): SchedulerId;
+  scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]>;
+  scheduleEvent(trigger: () => any, startTime: ScheduleTime): EventObject;
 
-  transition(fromId: SchedulerId, toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<SchedulerId>;
+  transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<AudioObject[]>;
+
+  stopAudio(audioObjects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void;
+
+  //replaceAudio(audioFiles: string[], id: SchedulerId, startTime: ScheduleTime, mode: PlaybackMode): SchedulerId;
+
 }
