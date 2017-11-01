@@ -48,6 +48,16 @@ async function testLongFileChop() {
   schedulo.start();
 }
 
+async function testLoopPoints() {
+  const schedulo = new Schedulo();
+  const id = await schedulo.scheduleAudio(
+    ["./loops/long2.m4a"],
+    Time.At(1),
+    Playback.Loop(10, 5, 2)
+  );
+  schedulo.start();
+}
+
 /*
 |...|...|...|...
   |     |
