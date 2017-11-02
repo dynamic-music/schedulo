@@ -12,6 +12,12 @@ interface ScheduleOptions {
   duration?: string | number;
 }
 
+interface ScheduledOptions {
+  startTime: string | number;
+  offset: string | number;
+  duration: number;
+}
+
 interface SubsetPlayerOptions {
   url: string;
   loop: boolean;
@@ -45,8 +51,9 @@ export class Schedulo implements Scheduler {
 
   async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
-    let loop = mode instanceof LoopMode ? true : false;
-    let players = await Promise.all(fileUris.map(f =>
+    let loop = mode instanceof LoopMode;
+
+    const playersAndOpts = await Promise.all(fileUris.map(f =>
       this.createTonePlayer({
         startTime: time,
         offset: mode.offset,
@@ -56,8 +63,35 @@ export class Schedulo implements Scheduler {
         loop: loop
       })
     ));
+    const {times = 0} = Object.assign({times: 0}, mode);
+    const hasRepeats = mode instanceof LoopMode &&
+      times > 0 && isFinite(times);
+
+    playersAndOpts.forEach(({player, options}) => {
+      const {startTime, offset, duration} = options;
+
+      if (hasRepeats) {
+        // first attempt
+        // schedule the audio once in loop mode
+        // schedule an event which turns loop off  
+        console.warn(startTime, offset, duration);
+        player.toMaster().sync().start(
+          startTime,
+          offset,
+          duration
+        ).stop(
+          new Time(startTime).add(new Time(times * duration)).toSeconds()
+        );
+      } else {
+        player.toMaster().sync().start(
+          startTime,
+          offset,
+          duration
+        );
+      }
+    });
     //TODO TAKE CARE OF DURATION WHEN LOOP NUMBER OF TIMES!!!!
-    let objects = players.map(p => new TonejsAudioObject(p, time,
+    let objects = playersAndOpts.map(({player: p}) => new TonejsAudioObject(p, time,
       mode.duration ? mode.duration : mode.offset ? this.sub(p.buffer.duration, mode.offset) : p.buffer.duration
     ));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
@@ -94,7 +128,7 @@ export class Schedulo implements Scheduler {
   private createTonePlayer(
     scheduleOpts: ScheduleOptions,
     playerOpts: SubsetPlayerOptions
-  ): Promise<Player> {
+  ): Promise<{player: Player; options: ScheduledOptions}> {
     return new Promise(resolve => {
       const {startTime, offset = 0} = scheduleOpts;
       const {url, onload = () => {}, ...otherOpts} = playerOpts;
@@ -108,7 +142,7 @@ export class Schedulo implements Scheduler {
           buffer.duration - new Time(offset).toSeconds();
       };
 
-      const setLoopPoints = (player: Player /*TODO Type*/, duration: number) => {
+      const setLoopPoints = (player: Player, duration: number) => {
         if (playerOpts.loop) {
           player.loopStart = new Time(offset).toSeconds();
           player.loopEnd = this.add(duration, offset);
@@ -125,14 +159,9 @@ export class Schedulo implements Scheduler {
             player.playbackRate = playbackRate;
             const duration = calculateDuration(buffer.get());
             setLoopPoints(player, duration)
-            player.toMaster().sync().start(
-              startTime,
-              offset,
-              duration
-            );
             // if we already have the buffer, manually resolve
             // (Tone.js doesn't call onload for Buffers)
-            resolve(player);
+            resolve({player, options: {startTime, offset, duration}});
           }
         );
       } else {
@@ -141,12 +170,7 @@ export class Schedulo implements Scheduler {
           this.filenameCache.set(url, player.buffer.get());
           const duration = calculateDuration(player.buffer.get());
           setLoopPoints(player, duration);
-          player.toMaster().sync().start(
-            startTime,
-            offset,
-            duration
-          );
-          resolve(player);
+          resolve({player, options: {startTime, offset, duration}});
         };
         new Player(playerOpts);
       }
