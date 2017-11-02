@@ -1,12 +1,11 @@
 import * as Tone from 'tone';
-import { Time } from 'tone';
+import { Time, Player } from 'tone';
 import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 
-type Player = any; // TODO write definitions in Tone.d.ts
 interface ScheduleOptions {
   startTime: string | number;
   offset?: string | number;
@@ -112,7 +111,7 @@ export class Schedulo implements Scheduler {
       const setLoopPoints = (player: Player /*TODO Type*/, duration: number) => {
         if (playerOpts.loop) {
           player.loopStart = new Time(offset).toSeconds();
-          player.loopEnd = new Time(duration).add(new Time(offset)).toSeconds();
+          player.loopEnd = this.add(duration, offset);
         }
       }
 
@@ -120,7 +119,7 @@ export class Schedulo implements Scheduler {
         const buffer = new Tone.Buffer(
           this.filenameCache.get(url),
           (buffer: any) => {
-            const player = new Tone.Player(buffer);
+            const player = new Player(buffer);
             const {loop = false, playbackRate = 1} = otherOpts;
             player.loop = loop;
             player.playbackRate = playbackRate;
@@ -149,7 +148,7 @@ export class Schedulo implements Scheduler {
           );
           resolve(player);
         };
-        new Tone.Player(playerOpts);
+        new Player(playerOpts);
       }
     });
   }

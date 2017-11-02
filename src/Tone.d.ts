@@ -63,15 +63,35 @@ interface Signal {
   linearRampTo(value: number, duration: string | number, stopTime: string | number): void
 }
 
-type Buffer = any;
+interface ToneBuffer {
+  get(): AudioBuffer;
+  duration: number;
+} // TODO, currently incomplete
+
+interface PlayerConstructorOptions {
+  url: string | ToneBuffer;
+  onload?: (player: Player) => void;
+  playbackRate?: number;
+  loop?: boolean;
+  autostart?: boolean;
+  loopStart?: number;
+  loopEnd?: number;
+  retrigger?: boolean;
+  reverse?: boolean;
+  fadeIn?: number;
+  fadeOut?: number;
+}
 
 interface PlayerConstructor {
-  new(buffer: string | Buffer): Player;
+  new(bufferOrOptions: string | ToneBuffer | PlayerConstructorOptions): Player;
 }
 
 interface Player {
-  volume: Signal,
-  loop: boolean,
+  buffer: ToneBuffer;
+  volume: Signal;
+  loop: boolean;
   playbackRate: number;
+  loopEnd: number;
+  loopStart: number;
   toMaster(): any;
 }
