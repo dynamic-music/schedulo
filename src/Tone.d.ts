@@ -93,5 +93,9 @@ interface Player {
   playbackRate: number;
   loopEnd: number;
   loopStart: number;
-  toMaster(): any;
+  toMaster(): Player;
+  unsync(): Player;
+  sync(): Player;
+  start(startTime: string | number, offset?: string | number, duration?: string | number): Player;
+  stop(offset?: string | number): Player;
 }
