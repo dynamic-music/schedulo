@@ -6,6 +6,7 @@
   "files": "lib/",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "npm run build",
     "build": "tsc && webpack ./lib/test.js bundle.js"
   },
   "contributors": [
