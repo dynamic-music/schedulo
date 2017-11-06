@@ -43,6 +43,10 @@ export class Schedulo implements Scheduler {
     Tone.Transport.start("+0.1");
   }
 
+  getCurrentTime(): number {
+    return Tone.Transport.seconds;
+  }
+
   async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
     let loop = mode instanceof LoopMode ? true : false;
