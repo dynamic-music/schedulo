@@ -5,7 +5,7 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
-import { calculateScheduleTimes, toBufferSegment, LoopToFit } from './looping';
+import { calculateScheduleTimes, toBufferSegment } from './looping';
 
 interface ScheduleOptions {
   startTime: string | number;
