@@ -82,6 +82,7 @@ export class Schedulo implements Scheduler {
         times, 
         playersToSetup.map(({player, options}) => {
           const {offset, duration} = options;
+          player.loop = false;
           return toBufferSegment(player.buffer, {
             offset: new Time(offset).toSeconds(),
             duration: new Time(duration).toSeconds()
