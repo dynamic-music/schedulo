@@ -1,9 +1,12 @@
 {
   "name": "schedulo",
   "version": "0.1.0",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "typings": "lib/index",
+  "files": ["lib/"],
   "scripts": {
     "test": "mocha test/*.spec.ts --require ts-node/register",
+    "prepare": "npm run build",
     "build": "tsc && webpack ./lib/test.js bundle.js"
   },
   "contributors": [

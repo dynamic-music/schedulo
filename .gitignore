@@ -2,3 +2,4 @@ node_modules
 lib
 bundle.js
 loops
+package-lock.json

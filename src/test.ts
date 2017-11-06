@@ -1,6 +1,6 @@
 import { Schedulo, Playback, Time, Stop, Transition, Subdivision } from './index';
 
-testScheduleAfter();
+testLoopMultipleMaxPeriod();
 
 async function testTransition() {
   let schedulo = new Schedulo();

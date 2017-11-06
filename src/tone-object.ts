@@ -23,6 +23,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
   }
 
+  stop(time: ScheduleTime, mode: StoppingMode): void {
+    this.tonejsPlayer.unsync().stop();
+  }
+
 }
 
 export class TonejsEventObject extends TonejsScheduledObject implements EventObject {

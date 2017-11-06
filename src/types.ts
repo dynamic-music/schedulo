@@ -100,7 +100,7 @@ export interface ScheduledObject {
 export interface AudioObject extends ScheduledObject {
   set(param: Parameter, value: number): void,
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void,
-  //???stop(time: ScheduleTime, mode: StoppingMode): void
+  stop(time: ScheduleTime, mode: StoppingMode): void
   //etc
 }
 export interface EventObject extends ScheduledObject {}
