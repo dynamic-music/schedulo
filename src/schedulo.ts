@@ -5,6 +5,7 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
+import { calculateScheduleTimes, toBufferSegment } from './looping';
 
 interface ScheduleOptions {
   startTime: string | number;
@@ -12,11 +13,22 @@ interface ScheduleOptions {
   duration?: string | number;
 }
 
+interface ScheduledOptions {
+  startTime: string | number;
+  offset: string | number;
+  duration: number;
+}
+
 interface SubsetPlayerOptions {
   url: string;
   loop: boolean;
   onload?: (player: Player) => void;
   playbackRate?: number;
+}
+
+interface PlayerConfiguration {
+  player: Player;
+  options: ScheduledOptions;
 }
 
 export class Schedulo implements Scheduler {
@@ -49,8 +61,9 @@ export class Schedulo implements Scheduler {
 
   async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
-    let loop = mode instanceof LoopMode ? true : false;
-    let players = await Promise.all(fileUris.map(f =>
+    let loop = mode instanceof LoopMode;
+
+    const playersToSetup = await Promise.all(fileUris.map(f =>
       this.createTonePlayer({
         startTime: time,
         offset: mode.offset,
@@ -60,10 +73,54 @@ export class Schedulo implements Scheduler {
         loop: loop
       })
     ));
-    //TODO TAKE CARE OF DURATION WHEN LOOP NUMBER OF TIMES!!!!
-    let objects = players.map(p => new TonejsAudioObject(p, time,
-      mode.duration ? mode.duration : mode.offset ? this.sub(p.buffer.duration, mode.offset) : p.buffer.duration
-    ));
+
+    const {times = 0} = Object.assign({times: 0}, mode);
+    const hasRepeats = times > 0 && isFinite(times);
+
+    const scheduleTimes = hasRepeats && mode instanceof LoopMode ?
+      calculateScheduleTimes(
+        times, 
+        playersToSetup.map(({player, options}) => {
+          const {offset, duration} = options;
+          return toBufferSegment(player.buffer, {
+            offset: new Time(offset).toSeconds(),
+            duration: new Time(duration).toSeconds()
+          });
+        }),
+        {
+          scheduleTimeOffset: new Time(time).toSeconds()
+        }
+      ) : { // this is ugly, not actually the same type
+        times: [],
+        duration: null
+      };
+
+    const objects = playersToSetup.map(({player, options}, i) => {
+      const {startTime, offset, duration} = options;
+
+      if (scheduleTimes.times.length) {
+        player.toMaster().sync();
+        scheduleTimes.times[i].forEach(time => {
+          player.start(
+            time.startTime,
+            time.offset,
+            time.duration
+          ).stop(time.stopTime);
+        });
+      } else {
+        player.toMaster().sync().start(
+          startTime,
+          offset,
+          duration
+        );
+      }
+      return new TonejsAudioObject(
+        player,
+        startTime,
+        scheduleTimes.duration || duration
+      );
+    });
+
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -98,7 +155,7 @@ export class Schedulo implements Scheduler {
   private createTonePlayer(
     scheduleOpts: ScheduleOptions,
     playerOpts: SubsetPlayerOptions
-  ): Promise<Player> {
+  ): Promise<PlayerConfiguration> {
     return new Promise(resolve => {
       const {startTime, offset = 0} = scheduleOpts;
       const {url, onload = () => {}, ...otherOpts} = playerOpts;
@@ -112,7 +169,7 @@ export class Schedulo implements Scheduler {
           buffer.duration - new Time(offset).toSeconds();
       };
 
-      const setLoopPoints = (player: Player /*TODO Type*/, duration: number) => {
+      const setLoopPoints = (player: Player, duration: number) => {
         if (playerOpts.loop) {
           player.loopStart = new Time(offset).toSeconds();
           player.loopEnd = this.add(duration, offset);
@@ -129,14 +186,9 @@ export class Schedulo implements Scheduler {
             player.playbackRate = playbackRate;
             const duration = calculateDuration(buffer.get());
             setLoopPoints(player, duration)
-            player.toMaster().sync().start(
-              startTime,
-              offset,
-              duration
-            );
             // if we already have the buffer, manually resolve
             // (Tone.js doesn't call onload for Buffers)
-            resolve(player);
+            resolve({player, options: {startTime, offset, duration}});
           }
         );
       } else {
@@ -145,12 +197,7 @@ export class Schedulo implements Scheduler {
           this.filenameCache.set(url, player.buffer.get());
           const duration = calculateDuration(player.buffer.get());
           setLoopPoints(player, duration);
-          player.toMaster().sync().start(
-            startTime,
-            offset,
-            duration
-          );
-          resolve(player);
+          resolve({player, options: {startTime, offset, duration}});
         };
         new Player(playerOpts);
       }
