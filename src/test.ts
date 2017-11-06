@@ -1,6 +1,6 @@
 import { Schedulo, Playback, Time, Stop, Transition, Subdivision } from './index';
 
-testLongFileChop();
+testScheduleAfter();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -54,6 +54,36 @@ async function testLoopPoints() {
     ["./loops/long2.m4a"],
     Time.At(1),
     Playback.Loop(10, 5, 2)
+  );
+  schedulo.start();
+}
+
+async function testLoopMultipleMaxPeriod() {
+  const schedulo = new Schedulo();
+  const id = await schedulo.scheduleAudio(
+    ["./loops/1.m4a", "./loops/short.wav"],
+    Time.At(1),
+    Playback.Loop(2, 0, 20)
+  );
+  schedulo.start();
+}
+
+async function testScheduleAfter() {
+  const schedulo = new Schedulo();
+  const one = await schedulo.scheduleAudio(
+    ['./loops/short.wav'],
+    Time.At(1),
+    Playback.Loop(2)
+  );
+  const two = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.After(one),
+    Playback.Oneshot()
+  );
+  await schedulo.scheduleAudio(
+    ['./loops/short.wav'],
+    Time.After(two),
+    Playback.Oneshot()
   );
   schedulo.start();
 }
