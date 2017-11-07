@@ -1,4 +1,4 @@
-import { Player } from 'tone';
+import { Player, gainToDb } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime, StoppingMode } from './types';
 
 export class TonejsScheduledObject implements ScheduledObject {
@@ -14,7 +14,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   set(param: Parameter, value: number): void {
     console.log(Parameter[param], value)
     if (param === Parameter.Amplitude) {
-      this.tonejsPlayer.volume.value = value;
+      this.tonejsPlayer.volume.value = gainToDb(value);
     } else if (param === Parameter.PlaybackRate) {
       this.tonejsPlayer.playbackRate = value;
       /*this.tonejsPlayer.unsync().stop();

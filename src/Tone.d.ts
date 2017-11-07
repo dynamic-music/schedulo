@@ -10,6 +10,7 @@ type Tone = {
   TimeBase: TimeBaseConstructor;
   Transport: ToneTransport;
   Player: PlayerConstructor;
+  gainToDb(gain: number): number;
 };
 
 type BarsBeatsSixteenths = string;
