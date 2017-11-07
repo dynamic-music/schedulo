@@ -1,3 +1,8 @@
+declare var global: any;
+if (typeof window === 'undefined') {
+  global.window = {};
+}
+
 import * as Tone from 'tone';
 import { Time, Player } from 'tone';
 import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
@@ -79,7 +84,7 @@ export class Schedulo implements Scheduler {
 
     const scheduleTimes = hasRepeats && mode instanceof LoopMode ?
       calculateScheduleTimes(
-        times, 
+        times,
         playersToSetup.map(({player, options}) => {
           const {offset, duration} = options;
           player.loop = false;
@@ -221,7 +226,7 @@ export class Schedulo implements Scheduler {
   }
 
   private calculateEndTime(objects: ScheduledObject[]): string | number {
-    let endTimes = objects.map(({startTime, duration = 0}) => this.add(startTime, duration));
+    let endTimes = objects.map(({offset, duration = 0}) => this.add(offset, duration));
     return Math.max(...endTimes);
   }
 

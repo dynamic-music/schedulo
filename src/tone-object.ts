@@ -2,18 +2,27 @@ import { Player } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime, StoppingMode } from './types';
 
 export class TonejsScheduledObject implements ScheduledObject {
-  constructor(public tonejsObject: any, public startTime: number | string, public duration?: number | string) {}
+  constructor(public tonejsObject: any, public offset: number | string, public duration?: number | string) {}
 }
 
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
 
-  constructor(public tonejsPlayer: Player, public startTime: number | string, public duration: number | string) {
-    super(tonejsPlayer, startTime, duration);
+  constructor(public tonejsPlayer: Player, public offset: number | string, public duration: number | string) {
+    super(tonejsPlayer, offset, duration);
   }
 
   set(param: Parameter, value: number): void {
+    console.log(Parameter[param], value)
     if (param === Parameter.Amplitude) {
       this.tonejsPlayer.volume.value = value;
+    } else if (param === Parameter.PlaybackRate) {
+      this.tonejsPlayer.playbackRate = value;
+      /*this.tonejsPlayer.unsync().stop();
+      this.tonejsPlayer = new Player();
+      this.tonejsPlayer.playbackRate = value;*/
+    } else if (param === Parameter.StartTime) {
+      this.tonejsPlayer.unsync().stop();
+      this.tonejsPlayer.sync().start(value);
     }
   }
 

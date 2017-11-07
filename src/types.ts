@@ -88,12 +88,14 @@ export module Stop {
 //scheduled object
 
 export enum Parameter {
+  StartTime,
   Amplitude,
   Reverb,
-  Loop
+  Loop,
+  PlaybackRate
 }
 export interface ScheduledObject {
-  startTime: string | number,
+  offset: string | number,
   duration?: string | number
   //etc
 }
