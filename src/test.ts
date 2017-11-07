@@ -1,6 +1,14 @@
-import { Schedulo, Playback, Time, Stop, Transition, Subdivision } from './index';
+import {
+  Schedulo,
+  Playback,
+  Time,
+  Stop,
+  Transition,
+  Subdivision,
+  Parameter
+} from './index';
 
-testLoopMultipleMaxPeriod();
+testChangeAmplitude();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -86,6 +94,20 @@ async function testScheduleAfter() {
     Playback.Oneshot()
   );
   schedulo.start();
+}
+
+async function testChangeAmplitude() {
+  const schedulo = new Schedulo();
+  const loop = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.Immediately,
+    Playback.Oneshot()
+  );
+  schedulo.start();
+  await schedulo.scheduleEvent(() => {
+    console.warn('change volume');
+    loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
+  }, Time.At(2.0));
 }
 
 /*
