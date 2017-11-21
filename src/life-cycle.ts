@@ -102,8 +102,7 @@ export class ManagedAudioEvent implements IAudioEvent {
     // TODO shift events etc
     if (this.scheduled) {
       console.warn('remove scheduled');
-      this.scheduled.forEach(event => event.dispose());
-      this.scheduled = new Map();
+      this.reset();
     }
     this.startTimeSecs = new Time(t).toSeconds();
     const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
@@ -166,10 +165,12 @@ export class ManagedAudioEvent implements IAudioEvent {
   
   stop(time: ScheduleTime, mode: StoppingMode): void {
     // TODO stopping modes etc, clean up is different depending on mode
-    const player = this.scheduled.get('player');
-    if (player) {
-      player.dispose(); // TODO
-    }
+    this.reset();
+  }
+
+  private reset() {
+    this.scheduled.forEach(event => event.dispose());
+    this.scheduled = new Map();
   }
 }
 
