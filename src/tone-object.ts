@@ -2,13 +2,23 @@ import { Player, gainToDb } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime, StoppingMode } from './types';
 
 export class TonejsScheduledObject implements ScheduledObject {
-  constructor(public tonejsObject: any, public offset: number | string, public duration?: number | string) {}
+  constructor(
+    public tonejsObject: any,
+    public startTime: number | string,
+    public offset?: number | string,
+    public duration?: number | string,
+  ) {}
 }
 
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
 
-  constructor(public tonejsPlayer: Player, public offset: number | string, public duration: number | string) {
-    super(tonejsPlayer, offset, duration);
+  constructor(
+    public tonejsPlayer: Player,
+    public startTime: number | string,
+    public offset?: number | string,
+    public duration?: number | string
+  ) {
+    super(tonejsPlayer, startTime, offset, duration);
   }
 
   set(param: Parameter, value: number): void {

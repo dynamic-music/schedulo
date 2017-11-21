@@ -11,6 +11,7 @@ type Tone = {
   Transport: ToneTransport;
   Player: PlayerConstructor;
   gainToDb(gain: number): number;
+  Event: ToneEventConstructor<any>;
 };
 
 type BarsBeatsSixteenths = string;
@@ -99,4 +100,25 @@ interface Player {
   sync(): Player;
   start(startTime: string | number, offset?: string | number, duration?: string | number): Player;
   stop(offset?: string | number): Player;
+  dispose(): void;
+}
+
+interface IToneEvent<T> {
+  callback: (value: T) => void;
+  loop: boolean;
+  loopEnd: number;
+  loopStart: number;
+  mute: boolean;
+  playbackRate: number;
+  probability: number;
+  progress: number;
+  state: string;
+  dispose(): this;
+  cancel(after?: string | number): this;
+  start(startTime: string | number): this;
+  stop(offset?: string | number): this;
+}
+
+interface ToneEventConstructor<T> {
+  new(callback: (value: T) => void, value?: T): IToneEvent<T>;
 }

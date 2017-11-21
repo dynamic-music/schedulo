@@ -7,8 +7,9 @@ import {
   Subdivision,
   Parameter
 } from './index';
+import { ManagedAudioEvent } from './life-cycle';
 
-testChangeAmplitude();
+testLifeCycleChangeOffsetLoopedExample();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -66,14 +67,15 @@ async function testLoopPoints() {
   schedulo.start();
 }
 
-async function testLoopMultipleMaxPeriod() {
+async function testLoopMultipleMaxPeriod(startTime: number = 1) {
   const schedulo = new Schedulo();
-  const id = await schedulo.scheduleAudio(
-    ["./loops/1.m4a", "./loops/short.wav"],
-    Time.At(1),
+  const scheduled = await schedulo.scheduleAudio(
+    ["./loops/1.wav", "./loops/short.wav"],
+    Time.At(startTime),
     Playback.Loop(2, 0, 20)
   );
   schedulo.start();
+  return {schedulo, scheduled};
 }
 
 async function testScheduleAfter() {
@@ -100,14 +102,56 @@ async function testChangeAmplitude() {
   const schedulo = new Schedulo();
   const loop = await schedulo.scheduleAudio(
     ['./loops/1.m4a'],
-    Time.Immediately,
+    Time.At(10),
     Playback.Oneshot()
   );
   schedulo.start();
   await schedulo.scheduleEvent(() => {
     console.warn('change volume');
     loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
-  }, Time.At(2.0));
+  }, Time.At(12));
+}
+
+async function testLifeCycleLoadAfterDispose() {
+  const schedulo = new Schedulo();
+  const loop = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.At(5),
+    Playback.Oneshot()
+  );
+  const again = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.After(loop),
+    Playback.Oneshot()
+  );
+  again[0].set(Parameter.Amplitude, 0.5);
+  schedulo.start();
+  await schedulo.scheduleEvent(() => {
+    console.warn('change volume');
+    loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
+  }, Time.At(12));
+}
+
+async function testLifeCycleChangeOffsetBeforeScheduledTime() {
+  const schedulo = new Schedulo();
+  const loop = await schedulo.scheduleAudio(
+    ['./loops/1.wav'],
+    Time.At(5),
+    Playback.Oneshot()
+  );
+  schedulo.start();
+  await schedulo.scheduleEvent(() => {
+    console.warn('change start time');
+    loop.forEach(obj => obj.set(Parameter.StartTime, 10));
+  }, Time.At(4.5));
+}
+
+async function testLifeCycleChangeOffsetLoopedExample() {
+  const {schedulo, scheduled} = await testLoopMultipleMaxPeriod(5);
+  await schedulo.scheduleEvent(() => {
+    console.warn('change start time');
+    scheduled.forEach(obj => obj.set(Parameter.StartTime, 10));
+  }, Time.At(4.5));
 }
 
 /*
