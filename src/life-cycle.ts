@@ -70,7 +70,18 @@ export class ManagedAudioEvent implements IAudioEvent {
         currentValue: 1.0,
         handler: (n, player) => player.volume.value = gainToDb(n)
       }
-    )
+    );
+    this.parameterDispatchers.set(
+      Parameter.PlaybackRate,
+      {
+        currentValue: 1.0,
+        handler: (n, player) => player.playbackRate = n
+      }
+    );
+  }
+
+  get duration(): string | number {
+    return this.durationSecs;
   }
 
   get offset(): number | string {
@@ -104,6 +115,7 @@ export class ManagedAudioEvent implements IAudioEvent {
 
     const connectAndScheduleToPlay = new Event(() => {
       // TODO, de-couple buffer loading from player creation
+      console.warn('connecting');
       const player = this.createPlayer();
       this.scheduled.set('player', player);
       this.parameterDispatchers.forEach(({handler, currentValue}) => {

@@ -9,7 +9,7 @@ import {
 } from './index';
 import { ManagedAudioEvent } from './life-cycle';
 
-testChangeAmplitude();
+testScheduleAfter();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -102,6 +102,25 @@ async function testChangeAmplitude() {
   const loop = await schedulo.scheduleAudio(
     ['./loops/1.m4a'],
     Time.At(10),
+    Playback.Oneshot()
+  );
+  schedulo.start();
+  await schedulo.scheduleEvent(() => {
+    console.warn('change volume');
+    loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
+  }, Time.At(12));
+}
+
+async function testLifeCycleLoadAfterDispose() {
+  const schedulo = new Schedulo();
+  const loop = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.At(10),
+    Playback.Oneshot()
+  );
+  const again = await schedulo.scheduleAudio(
+    ['./loops/1.m4a'],
+    Time.After(loop),
     Playback.Oneshot()
   );
   schedulo.start();

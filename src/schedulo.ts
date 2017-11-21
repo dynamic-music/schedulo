@@ -50,6 +50,7 @@ export class Schedulo implements Scheduler {
       time, // TODO, function args for setupTonePlayers are not ideal
       this.filenameCache
     );
+    console.warn(objects);
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -99,5 +100,6 @@ export class Schedulo implements Scheduler {
 
 function calculateEndTime(objects: ScheduledObject[]): string | number {
   let endTimes = objects.map(({offset, duration = 0}) => add(offset, duration));
+  console.warn(Math.max(...endTimes));
   return Math.max(...endTimes);
 }
