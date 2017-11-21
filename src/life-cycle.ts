@@ -85,7 +85,14 @@ export class ManagedAudioEvent implements IAudioEvent {
       Parameter.StartTime,
       {
         currentValue: this.originalStartTimeSecs,
-        handler: n => this.startTime = n
+        handler: n => {
+          const now = Tone.Transport.seconds;
+          const isCurrentlyPlaying = now >= this.startTimeSecs && 
+            now < this.startTimeSecs + this.durationSecs;
+          if (!isCurrentlyPlaying) {
+            this.startTime = n;
+          }
+        }
       }
     );
   }
@@ -101,7 +108,6 @@ export class ManagedAudioEvent implements IAudioEvent {
   set startTime(t: number | string) {
     // TODO shift events etc
     if (this.scheduled) {
-      console.warn('remove scheduled');
       this.reset();
     }
     this.startTimeSecs = new Time(t).toSeconds();
@@ -112,7 +118,6 @@ export class ManagedAudioEvent implements IAudioEvent {
     // at the given time minus the managed timing for this object
     // schedule to play at the given offset
     const disconnectAndDispose = new Event(() => {
-      console.warn('dispose', Tone.Transport.seconds);
       const player = this.scheduled.get('player');
       if (player) {
         player.dispose();
@@ -127,8 +132,6 @@ export class ManagedAudioEvent implements IAudioEvent {
 
     const connectAndScheduleToPlay = new Event(() => {
       // TODO, de-couple buffer loading from player creation
-      console.warn('connecting', Tone.Transport.seconds);
-      console.warn('start offset', startOffset);
       const player = this.createPlayer(startOffset);
       this.scheduled.set('player', player);
       this.parameterDispatchers.forEach(({handler, currentValue}, paramType) => {
@@ -139,7 +142,9 @@ export class ManagedAudioEvent implements IAudioEvent {
       connectAndScheduleToPlay.stop();
     });
     const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
-    connectAndScheduleToPlay.start(preLoadTime < 0 ? 0 : preLoadTime);
+    connectAndScheduleToPlay.start(preLoadTime < Tone.Transport.seconds ? 
+      Tone.Transport.seconds : preLoadTime
+    );
     this.scheduled.set('connect', connectAndScheduleToPlay);
   }
   
