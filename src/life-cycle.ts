@@ -161,11 +161,15 @@ export class ManagedAudioEvent implements IAudioEvent {
     duration: string | number,
     time: string | number
   ): void {
-    throw new Error("Method not implemented.");
+    throw new Error("Method not implemented."); // TODO 
   }
   
   stop(time: ScheduleTime, mode: StoppingMode): void {
-    throw new Error("Method not implemented.");
+    // TODO stopping modes etc, clean up is different depending on mode
+    const player = this.scheduled.get('player');
+    if (player) {
+      player.dispose(); // TODO
+    }
   }
 }
 
