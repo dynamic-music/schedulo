@@ -11,7 +11,11 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add } from './tone-helpers';
-import { setupTonePlayers } from './life-cycle';
+import { setupTonePlayers, defaultTimings, LifeCycleTimings } from './life-cycle';
+
+export interface AdditionalOptions {
+  timings: LifeCycleTimings;
+}
 
 export class Schedulo implements Scheduler {
 
@@ -41,16 +45,21 @@ export class Schedulo implements Scheduler {
     return Tone.Transport.seconds;
   }
 
-  async scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]> {
+  async scheduleAudio(
+    fileUris: string[],
+    startTime: ScheduleTime,
+    mode: PlaybackMode,
+    options: AdditionalOptions = {timings: defaultTimings}
+  ): Promise<AudioObject[]> {
     let time = this.calculateScheduleTime(startTime);
-    const objects = await setupTonePlayers(
+    const objects = await setupTonePlayers({
       fileUris,
       startTime,
       mode,
       time, // TODO, function args for setupTonePlayers are not ideal
-      this.filenameCache
-    );
-    console.warn(objects);
+      filenameCache: this.filenameCache,
+      timings: options.timings
+    });
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -99,7 +108,6 @@ export class Schedulo implements Scheduler {
 }
 
 function calculateEndTime(objects: ScheduledObject[]): string | number {
-  let endTimes = objects.map(({offset, duration = 0}) => add(offset, duration));
-  console.warn(Math.max(...endTimes));
+  let endTimes = objects.map(({startTime, duration = 0}) => add(startTime, duration));
   return Math.max(...endTimes);
 }
