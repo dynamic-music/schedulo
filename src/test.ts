@@ -7,6 +7,7 @@ import {
   Subdivision,
   Parameter
 } from './index';
+import { ManagedAudioEvent } from './life-cycle';
 
 testChangeAmplitude();
 
@@ -100,15 +101,25 @@ async function testChangeAmplitude() {
   const schedulo = new Schedulo();
   const loop = await schedulo.scheduleAudio(
     ['./loops/1.m4a'],
-    Time.Immediately,
+    Time.At(10),
     Playback.Oneshot()
   );
   schedulo.start();
   await schedulo.scheduleEvent(() => {
     console.warn('change volume');
     loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
-  }, Time.At(2.0));
+  }, Time.At(12));
 }
+
+// async function testManagedObject() {
+//   const managed = new ManagedAudioEvent({
+//     offset: 3
+//   });
+//   setTimeout(() => {
+//     console.warn('timeout');
+//     managed.offset = 10;
+//   }, 2000);
+// }
 
 /*
 |...|...|...|...
