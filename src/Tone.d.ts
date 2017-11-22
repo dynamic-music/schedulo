@@ -105,7 +105,7 @@ interface Player {
 }
 
 interface IToneEvent<T> {
-  callback: (value: T) => void;
+  callback: (time: number, value: T) => void;
   loop: boolean;
   loopEnd: number;
   loopStart: number;
@@ -121,7 +121,7 @@ interface IToneEvent<T> {
 }
 
 interface ToneEventConstructor<T> {
-  new(callback: (value: T) => void, value?: T): IToneEvent<T>;
+  new(callback: (time: number, value: T) => void, value?: T): IToneEvent<T>;
 }
 
 interface IEmitter<EventTypes, FArgs> { // TODO no varaidic args, so this is too restrictive

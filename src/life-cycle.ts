@@ -149,7 +149,19 @@ export class ManagedAudioEvent implements IAudioEvent {
       Tone.Transport.seconds : preLoadTime
     );
     this.scheduled.set('connect', connectAndScheduleToPlay);
-    this.emit('playing', Tone.Transport.seconds);
+    // naively fire events which ought to align with when the player starts and stops
+    const isPlaying = new Event(time => {
+      this.emit('playing', time);
+      isPlaying.stop();
+    });
+    const hasStopped = new Event(time => {
+      this.emit('stopped', time);
+      hasStopped.stop();
+    });
+    this.scheduled.set('playing', isPlaying);
+    this.scheduled.set('stopped', hasStopped);
+    isPlaying.start(this.startTimeSecs);
+    hasStopped.start(this.startTimeSecs + this.durationSecs);
   }
   
   set(param: Parameter, value: number): void {
