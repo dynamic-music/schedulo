@@ -148,6 +148,9 @@ async function testLifeCycleChangeOffsetBeforeScheduledTime() {
 
 async function testLifeCycleChangeOffsetLoopedExample() {
   const {schedulo, scheduled} = await testLoopMultipleMaxPeriod(5);
+  scheduled.forEach(obj => obj.on('playing', (n) => {
+    console.warn('connected!');
+  }));
   await schedulo.scheduleEvent(() => {
     console.warn('change start time');
     scheduled.forEach(obj => obj.set(Parameter.StartTime, 10));

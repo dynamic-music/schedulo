@@ -7,10 +7,11 @@ import {
   ScheduleTime,
   StoppingMode,
   PlaybackMode,
-  LoopMode
+  LoopMode,
+  AudioStatus
 } from './types';
 import * as Tone from 'tone';
-import { Event, Time, gainToDb } from 'tone';
+import { Event, Time, gainToDb, Emitter } from 'tone';
 import { calculateScheduleTimes, toBufferSegment } from './looping';
 import { createTonePlayer, PlayerFactory, add } from './tone-helpers';
 
@@ -55,9 +56,11 @@ export class ManagedAudioEvent implements IAudioEvent {
   private timings: LifeCycleTimings;
   private createPlayer: (startOffset?: number) => Player;
   private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
+  private emitter: IEmitter<AudioStatus, number | string>;
 
   constructor({startTime, duration = 0, ...otherParams}: ManagedEventArgs) {
     const { timings = defaultTimings, createPlayer } = otherParams;
+    this.emitter = new Emitter();
     this.createPlayer = createPlayer;
     this.timings = timings;
     this.scheduled = new Map();
@@ -146,6 +149,7 @@ export class ManagedAudioEvent implements IAudioEvent {
       Tone.Transport.seconds : preLoadTime
     );
     this.scheduled.set('connect', connectAndScheduleToPlay);
+    this.emit('playing', Tone.Transport.seconds);
   }
   
   set(param: Parameter, value: number): void {
@@ -171,6 +175,26 @@ export class ManagedAudioEvent implements IAudioEvent {
   stop(time: ScheduleTime, mode: StoppingMode): void {
     // TODO stopping modes etc, clean up is different depending on mode
     this.reset();
+  }
+
+  dispose(): this {
+    this.emitter.dispose();
+    return this;
+  }
+
+  emit(event: AudioStatus, ...args: (string | number)[]): this {
+    this.emitter.emit(event, ...args);
+    return this;
+  }
+
+  off(event: AudioStatus, callback?: ((...args: (string | number)[]) => void)): this {
+    this.emitter.off(event, callback);
+    return this;
+  }
+
+  on(event: AudioStatus, callback: (...args: (string | number)[]) => void): this {
+    this.emitter.on(event, callback);
+    return this;
   }
 
   private reset() {
