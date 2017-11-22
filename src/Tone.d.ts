@@ -12,6 +12,7 @@ type Tone = {
   Player: PlayerConstructor;
   gainToDb(gain: number): number;
   Event: ToneEventConstructor<any>;
+  Emitter: Emitter<Object | Function>;
 };
 
 type BarsBeatsSixteenths = string;
@@ -104,7 +105,7 @@ interface Player {
 }
 
 interface IToneEvent<T> {
-  callback: (value: T) => void;
+  callback: (time: number, value: T) => void;
   loop: boolean;
   loopEnd: number;
   loopStart: number;
@@ -120,5 +121,17 @@ interface IToneEvent<T> {
 }
 
 interface ToneEventConstructor<T> {
-  new(callback: (value: T) => void, value?: T): IToneEvent<T>;
+  new(callback: (time: number, value: T) => void, value?: T): IToneEvent<T>;
+}
+
+interface IEmitter<EventTypes, FArgs> { // TODO no varaidic args, so this is too restrictive
+  dispose(): this;
+  emit(event: EventTypes, ...args: FArgs[]): this;
+  off(event: EventTypes, callback?: (...args: FArgs[]) => void): this;
+  on(event: EventTypes, callback: (...args: FArgs[]) => void): this;
+}
+
+interface Emitter<T> {
+  new(): IEmitter<string, any>;
+  mixin(obj: T): T & IEmitter<string, any>;
 }

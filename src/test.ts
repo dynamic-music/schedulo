@@ -9,7 +9,7 @@ import {
 } from './index';
 import { ManagedAudioEvent } from './life-cycle';
 
-testLifeCycleChangeOffsetLoopedExample();
+testStateEmitter();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -148,6 +148,20 @@ async function testLifeCycleChangeOffsetBeforeScheduledTime() {
 
 async function testLifeCycleChangeOffsetLoopedExample() {
   const {schedulo, scheduled} = await testLoopMultipleMaxPeriod(5);
+  await schedulo.scheduleEvent(() => {
+    console.warn('change start time');
+    scheduled.forEach(obj => obj.set(Parameter.StartTime, 10));
+  }, Time.At(4.5));
+}
+
+async function testStateEmitter() {
+  const {schedulo, scheduled} = await testLoopMultipleMaxPeriod(5);
+  scheduled.forEach(obj => obj.on('playing', (time) => {
+    console.warn('playing: ', time);
+  }));
+  scheduled.forEach(obj => obj.on('stopped', (time) => {
+    console.warn('stopped: ', time);
+  }));
   await schedulo.scheduleEvent(() => {
     console.warn('change start time');
     scheduled.forEach(obj => obj.set(Parameter.StartTime, 10));

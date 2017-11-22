@@ -100,7 +100,10 @@ export interface ScheduledObject {
   duration?: string | number;
   //etc
 }
-export interface AudioObject extends ScheduledObject {
+
+export type AudioStatus = 'playing' | 'stopped';
+export interface AudioObject extends 
+  ScheduledObject, IEmitter<AudioStatus, number | string> {
   set(param: Parameter, value: number): void,
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void,
   stop(time: ScheduleTime, mode: StoppingMode): void

@@ -1,13 +1,15 @@
-import { Player, gainToDb } from 'tone';
+import { Player, gainToDb, Emitter } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime, StoppingMode } from './types';
 
-export class TonejsScheduledObject implements ScheduledObject {
+export class TonejsScheduledObject extends Emitter implements ScheduledObject {
   constructor(
     public tonejsObject: any,
     public startTime: number | string,
     public offset?: number | string,
     public duration?: number | string,
-  ) {}
+  ) {
+    super();
+  }
 }
 
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
