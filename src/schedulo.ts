@@ -13,9 +13,16 @@ import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './t
 import { add } from './tone-helpers';
 import { setupTonePlayers, defaultTimings, LifeCycleTimings } from './life-cycle';
 
+export type BufferLoadingScheme = 'preload' | 'dynamic';
 export interface AdditionalOptions {
   timings: LifeCycleTimings;
+  bufferScheme: BufferLoadingScheme;
 }
+
+export const defaultOptions: AdditionalOptions = {
+  timings: defaultTimings,
+  bufferScheme: 'preload'
+};
 
 export class Schedulo implements Scheduler {
 
@@ -49,17 +56,18 @@ export class Schedulo implements Scheduler {
     fileUris: string[],
     startTime: ScheduleTime,
     mode: PlaybackMode,
-    options: AdditionalOptions = {timings: defaultTimings}
+    options: AdditionalOptions = defaultOptions
   ): Promise<AudioObject[]> {
+    const { bufferScheme, timings } = options;
     let time = this.calculateScheduleTime(startTime);
-    const objects = await setupTonePlayers({
+    const objects = bufferScheme === 'preload' ? await setupTonePlayers({
       fileUris,
       startTime,
       mode,
       time, // TODO, function args for setupTonePlayers are not ideal
       filenameCache: this.filenameCache,
-      timings: options.timings
-    });
+      timings
+    }) : [];
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }

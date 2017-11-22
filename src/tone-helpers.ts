@@ -22,7 +22,7 @@ export interface SubsetPlayerOptions {
 }
 
 export interface PlayerFactory {
-  createPlayer: () => Player;
+  createPlayer: (startOffset: number) => Player;
   options: ScheduledOptions;
   buffer: AudioBuffer;
 }

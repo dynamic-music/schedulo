@@ -228,6 +228,108 @@ export class ManagedAudioEvent implements IAudioEvent {
   }
 }
 
+interface ScheduleToLoadArgs {
+  startTime: number;
+  duration: number;
+  uri: string;
+}
+
+function scheduleToLoadBuffer({
+  startTime,
+  duration,
+  uri
+}: ScheduleToLoadArgs): (n: number) => Player {
+  throw new Error("Method not implemented."); // TODO 
+}
+
+export interface DynamicBufferLoadingEventArgs extends ManagedEventTimes {
+  uri: string;
+}
+
+export class DynamicBufferLoadingManagedAudioEvent implements IAudioEvent {
+  private delegate: IAudioEvent;
+  private startTimeSecs: number;
+  private durationSecs: number;
+
+  constructor({
+    uri,
+    startTime,
+    duration = 0,
+    ...otherParams
+  }: DynamicBufferLoadingEventArgs) {
+    this.durationSecs = new Time(duration || 0).toSeconds();
+    this.startTimeSecs = new Time(startTime).toSeconds();
+    this.delegate = new ManagedAudioEvent({
+      startTime,
+      duration,
+      createPlayer: scheduleToLoadBuffer({
+        uri,
+        startTime: this.startTimeSecs,
+        duration: this.durationSecs
+      }),
+      ...otherParams
+    });
+  }
+
+  set(param: Parameter, value: number): void {
+    this.delegate.set(param, value);
+  }
+
+  ramp(
+    param: Parameter,
+    value: number,
+    duration: string | number,
+    time: string | number
+  ): void {
+    this.delegate.ramp(param, value, duration, time);
+  }
+
+  stop(time: ScheduleTime, mode: StoppingMode): void {
+    this.delegate.stop(time, mode);
+  }
+
+  get startTime(): string | number {
+    return this.delegate.startTime;
+  }
+
+  set startTime(time: string | number) {
+    this.delegate.startTime = time;
+    this.startTimeSecs = new Time(this.delegate.startTime).toSeconds();
+  }
+
+  offset?: string | number | undefined;
+
+  get duration(): string | number | undefined {
+    return this.delegate.duration;
+  }
+
+  dispose(): this {
+    this.delegate.dispose();
+    return this;
+  }
+
+  emit(event: AudioStatus, ...args: (string | number)[]): this {
+    this.delegate.emit(event, ...args);
+    return this;
+  }
+
+  off(
+    event: AudioStatus,
+    callback?: ((...args: (string | number)[]) => void) | undefined
+  ): this {
+    this.delegate.off(event, callback);
+    return this;
+  }
+
+  on(
+    event: AudioStatus,
+    callback: (...args: (string | number)[]) => void
+  ): this {
+    this.delegate.on(event, callback);
+    return this;
+  }
+}
+
 // TODO, tidy - this is pretty messy
 // TODO, seperate buffer loading from player instantiation
 // TODO, the 'looping' logic is mixed up in this too - bad idea?
@@ -247,13 +349,13 @@ export interface SetupEventsWithFactories extends SetupPlayerParams {
   factories: PlayerFactory[];
 }
 
-function toManagedAudioEvents({
+function toLoopingPlayerFactories({
   factories,
   startTime,
   mode,
   time,
   timings
-}: SetupEventsWithFactories): ManagedAudioEvent[] {
+}: SetupEventsWithFactories): PlayerFactory[] {
   const {times = 0} = Object.assign({times: 0}, mode);
   const hasRepeats = times > 0 && isFinite(times);
 
@@ -278,7 +380,7 @@ function toManagedAudioEvents({
   return factories.map(({createPlayer, options, buffer}, i) => {
     const {startTime, offset, duration} = options;
     const wrapped = (startOffset: number = 0.0) => {
-      const player = createPlayer();
+      const player = createPlayer(startOffset);
       if (scheduleTimes.times.length) {
         player.toMaster().sync();
         scheduleTimes.times[i].forEach(time => {
@@ -300,13 +402,14 @@ function toManagedAudioEvents({
       }
       return player;
     };
-
-    return new ManagedAudioEvent({
+    return {
       createPlayer: wrapped,
-      startTime,
-      duration: scheduleTimes.duration || duration, // in retrospect, is scheduleTimes.duration even correct?,
-      timings
-    });
+      options: {
+        ...options,
+        duration: scheduleTimes.duration || duration // TODO, is this correct?
+      },
+      buffer
+    }
   });
 }
 
@@ -333,11 +436,19 @@ export async function setupTonePlayers({
       filenameCache
     )
   ));
-  return toManagedAudioEvents({
+
+  return toLoopingPlayerFactories({
     factories,
     startTime,
     mode,
     time,
     timings
+  }).map(({createPlayer, options: {startTime, duration}}) => {
+    return new ManagedAudioEvent({
+      createPlayer,
+      startTime,
+      duration,
+      timings
+    });
   });
 }
