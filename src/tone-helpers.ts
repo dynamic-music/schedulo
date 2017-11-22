@@ -35,7 +35,7 @@ function sub(t1: string | number, t2: string | number): number {
   return new Time(t1).sub(new Time(t2)).toSeconds();
 }
 
-export function createTonePlayerWithBuffer(
+export function createPlayerFactoryWithBuffer(
   scheduleOpts: ScheduleOptions,
   playerOpts: SubsetPlayerOptions,
   buffer: ToneBuffer
@@ -78,7 +78,7 @@ export function createTonePlayerWithBuffer(
   };
 }
 
-export function createTonePlayer(
+export function createPlayerFactoryAfterLoadingBuffer(
   scheduleOpts: ScheduleOptions,
   playerOpts: SubsetPlayerOptions,
   filenameCache: Map<String, AudioBuffer>
@@ -89,7 +89,9 @@ export function createTonePlayer(
       const buffer = new Tone.Buffer(
         filenameCache.get(url),
         (loaded: ToneBuffer) => {
-          resolve(createTonePlayerWithBuffer(scheduleOpts, playerOpts, loaded));
+          resolve(
+            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
+          );
         },
         (err: string) => reject(err)
       );
@@ -99,7 +101,9 @@ export function createTonePlayer(
         (loaded: ToneBuffer) => {
           const buffer = loaded.get();
           filenameCache.set(url, buffer);
-          resolve(createTonePlayerWithBuffer(scheduleOpts, playerOpts, loaded));
+          resolve(
+            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
+          );
         },
         (err: string) => reject(err)
       );

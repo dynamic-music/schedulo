@@ -13,7 +13,11 @@ import {
 import * as Tone from 'tone';
 import { Event, Time, gainToDb, Emitter } from 'tone';
 import { calculateScheduleTimes, toBufferSegment } from './looping';
-import { createTonePlayer, PlayerFactory, add } from './tone-helpers';
+import {
+  createPlayerFactoryAfterLoadingBuffer,
+  PlayerFactory,
+  add
+} from './tone-helpers';
 
 
 export interface LifeCycleWindow {
@@ -33,11 +37,14 @@ export const defaultTimings: LifeCycleTimings = {
   connectToGraph: {countIn: 2, countOut: 2}
 };
 
-export interface ManagedEventArgs {
+export interface ManagedEventTimes {
   startTime: number | string;
-  createPlayer: (startOffset?: number) => Player;
   duration?: number | string;
   timings?: LifeCycleTimings;
+}
+
+export interface ManagedEventArgs extends ManagedEventTimes {
+  createPlayer: (startOffset: number) => Player;
 }
 
 interface ParameterStateHandling {
@@ -54,7 +61,7 @@ export class ManagedAudioEvent implements IAudioEvent {
   private startTimeSecs: number;
   private durationSecs: number;
   private timings: LifeCycleTimings;
-  private createPlayer: (startOffset?: number) => Player;
+  private createPlayer: (startOffset: number) => Player;
   private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
   private emitter: IEmitter<AudioStatus, number | string>;
 
@@ -199,12 +206,18 @@ export class ManagedAudioEvent implements IAudioEvent {
     return this;
   }
 
-  off(event: AudioStatus, callback?: ((...args: (string | number)[]) => void)): this {
+  off(
+    event: AudioStatus,
+    callback?: ((...args: (string | number)[]) => void)
+  ): this {
     this.emitter.off(event, callback);
     return this;
   }
 
-  on(event: AudioStatus, callback: (...args: (string | number)[]) => void): this {
+  on(
+    event: AudioStatus,
+    callback: (...args: (string | number)[]) => void
+  ): this {
     this.emitter.on(event, callback);
     return this;
   }
@@ -218,46 +231,36 @@ export class ManagedAudioEvent implements IAudioEvent {
 // TODO, tidy - this is pretty messy
 // TODO, seperate buffer loading from player instantiation
 // TODO, the 'looping' logic is mixed up in this too - bad idea?
+
 export interface SetupPlayerParams {
-  fileUris: string[];
   startTime: ScheduleTime;
   mode: PlaybackMode;
   time: string | number;
-  filenameCache: Map<String, AudioBuffer>;
   timings: LifeCycleTimings;
 }
+export interface SetupPlayerFromFilesParams extends SetupPlayerParams {
+  fileUris: string[];
+  filenameCache: Map<String, AudioBuffer>;
+}
 
-export async function setupTonePlayers({
-  fileUris,
+export interface SetupEventsWithFactories extends SetupPlayerParams {
+  factories: PlayerFactory[];
+}
+
+function toManagedAudioEvents({
+  factories,
   startTime,
   mode,
   time,
-  filenameCache,
   timings
-}: SetupPlayerParams): Promise<ManagedAudioEvent[]> {
-  let loop = mode instanceof LoopMode;
-  const playersToSetup = await Promise.all(fileUris.map(f =>
-    createTonePlayer(
-      {
-        startTime: time,
-        offset: mode.offset,
-        duration: mode.duration
-      },
-      {
-        url: f,
-        loop: loop
-      },
-      filenameCache
-    )
-  ));
-
+}: SetupEventsWithFactories): ManagedAudioEvent[] {
   const {times = 0} = Object.assign({times: 0}, mode);
   const hasRepeats = times > 0 && isFinite(times);
 
   const scheduleTimes = hasRepeats && mode instanceof LoopMode ?
     calculateScheduleTimes(
       times,
-      playersToSetup.map(({createPlayer, options, buffer}) => {
+      factories.map(({createPlayer, options, buffer}) => {
         const {offset, duration} = options;
         return toBufferSegment(buffer, {
           offset: new Time(offset).toSeconds(),
@@ -272,7 +275,7 @@ export async function setupTonePlayers({
       duration: null
     };
 
-  return playersToSetup.map(({createPlayer, options, buffer}, i) => {
+  return factories.map(({createPlayer, options, buffer}, i) => {
     const {startTime, offset, duration} = options;
     const wrapped = (startOffset: number = 0.0) => {
       const player = createPlayer();
@@ -296,12 +299,45 @@ export async function setupTonePlayers({
         player.loop = false;
       }
       return player;
-    }
+    };
+
     return new ManagedAudioEvent({
       createPlayer: wrapped,
       startTime,
       duration: scheduleTimes.duration || duration, // in retrospect, is scheduleTimes.duration even correct?,
       timings
     });
+  });
+}
+
+export async function setupTonePlayers({
+  fileUris,
+  startTime,
+  mode,
+  time,
+  filenameCache,
+  timings
+}: SetupPlayerFromFilesParams): Promise<ManagedAudioEvent[]> {
+  const loop = mode instanceof LoopMode;
+  const factories = await Promise.all(fileUris.map(f =>
+    createPlayerFactoryAfterLoadingBuffer(
+      {
+        startTime: time,
+        offset: mode.offset,
+        duration: mode.duration
+      },
+      {
+        url: f,
+        loop
+      },
+      filenameCache
+    )
+  ));
+  return toManagedAudioEvents({
+    factories,
+    startTime,
+    mode,
+    time,
+    timings
   });
 }
