@@ -182,6 +182,9 @@ async function testManagedEvent() {
         },
         outEvent: time => {
           console.warn('ended', time);
+        },
+        event: time => {
+          console.warn('event!', time);
         }
       }
     }

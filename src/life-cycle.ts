@@ -42,11 +42,13 @@ export const defaultAudioTimings: LifeCycleTimings = {
 };
 
 export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;
+export interface LifeCycleMapping<T> { // TODO rename to something more meaningful
+  inEvent: T;
+  outEvent: T;
+  event: T;
+}
 export type LifeCycleFunctions<Timings extends TimeLimited> = {
-  [Key in keyof Timings]: {
-    inEvent: (time: number) => void;
-    outEvent: (time: number) => void
-  };
+  [Key in keyof Timings]: LifeCycleMapping<(time: number) => void>;
 }
  
 export interface ManagedEventTimes<T> {
@@ -72,7 +74,7 @@ export interface ManagedEventArgs<T extends TimeLimited> {
 export class ManagedEvent<T extends TimeLimited> 
 implements IEmitter<LifeCycleStates<T>, number> {
   
-  private scheduled: Map<LifeCycleStates<T>, [IDisposable, IDisposable]>;
+  private scheduled: Map<LifeCycleStates<T>, LifeCycleMapping<IDisposable>>;
   private emitter: IEmitter<LifeCycleStates<T>, number>;
   private currentTimes: ManagedEventTimes<T>;
   private functions: LifeCycleFunctions<T>;
@@ -100,7 +102,7 @@ implements IEmitter<LifeCycleStates<T>, number> {
   }
 
   dispose(): this {
-    // TODO, call clear?
+    this.clear();
     this.emitter.dispose();
     return this;
   }
@@ -128,9 +130,10 @@ implements IEmitter<LifeCycleStates<T>, number> {
   }
 
   private clear() {
-    this.scheduled.forEach(([countIn, countOut]) => {
-      countIn.dispose();
-      countOut.dispose();
+    this.scheduled.forEach(({inEvent, outEvent, event}) => {
+      inEvent.dispose();
+      outEvent.dispose();
+      event.dispose();
     });
     this.scheduled.clear();
   }
@@ -138,26 +141,41 @@ implements IEmitter<LifeCycleStates<T>, number> {
   private schedule() {
     const { timings, startTime, duration = 0 } = this.currentTimes; 
     Object.keys(timings).forEach(key => {
-      const inEventKey = `${key}In`;
-      const outEventKey = `${key}Out`;
       const { countIn, countOut } = timings[key];
-      const countInEvent = new Event(time => {
-        countInEvent.stop();
-        this.functions[key].inEvent(time);
-        this.emit(inEventKey, time);
-      });
       const constrain = (preLoadTime: number) => {
         return preLoadTime < Tone.Transport.seconds ?
           Tone.Transport.seconds : preLoadTime
       };
-      countInEvent.start(constrain(startTime - countIn));
-      const countOutEvent = new Event(time => {
-        countOutEvent.stop();
-        this.functions[key].outEvent(time);
-        this.emit(outEventKey, time);
+
+      const createEvent = (
+        key: string,
+        event: (t: number) => void,
+        startTime: number
+      ) => {
+        const e = new Event(time => {
+          e.stop(); // TODO is this necessary?
+          event(time);
+          this.emit(key, startTime);
+        });
+        e.start(startTime);
+        return e;
+      };
+
+      const { inEvent, outEvent, event } = this.functions[key];
+
+      this.scheduled.set(key, {
+        inEvent: createEvent(
+          `${key}In`,
+          inEvent,
+          constrain(startTime - countIn)
+        ),
+        outEvent: createEvent(
+          `${key}Out`,
+          outEvent,
+          startTime + duration + countOut
+        ),
+        event: createEvent(key, event, startTime)
       });
-      countOutEvent.start(startTime + duration + countOut);
-      this.scheduled.set(key, [countInEvent, countOutEvent])
     });
   }
 }
