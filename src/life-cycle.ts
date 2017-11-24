@@ -25,6 +25,10 @@ export interface LifeCycleWindow {
   countOut: number;
 }
 
+export interface TimeLimited {
+  [state: string]: LifeCycleWindow; // TODO string is not strict enough
+}
+
 export interface LifeCycleTimings {
   connectToGraph: LifeCycleWindow;
 }
@@ -33,23 +37,129 @@ interface IDisposable {
   dispose(): void;
 }
 
-export const defaultTimings: LifeCycleTimings = {
+export const defaultAudioTimings: LifeCycleTimings = {
   connectToGraph: {countIn: 2, countOut: 2}
 };
 
-export interface ManagedEventTimes {
-  startTime: number | string;
-  duration?: number | string;
-  timings?: LifeCycleTimings;
+export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;
+export type LifeCycleFunctions<Timings extends TimeLimited> = {
+  [Key in keyof Timings]: {
+    inEvent: (time: number) => void;
+    outEvent: (time: number) => void
+  };
+}
+ 
+export interface ManagedEventTimes<T> {
+  startTime: number;
+  duration?: number;
+  timings: T;
 }
 
-export interface ManagedEventArgs extends ManagedEventTimes {
+export interface ManagedAudioEventArgs
+extends ManagedEventTimes<LifeCycleTimings> {
   createPlayer: (startOffset: number) => Player;
 }
 
 interface ParameterStateHandling {
   currentValue: number;
   handler: (n: number, player: Player) => void;
+}
+
+export interface ManagedEventArgs<T extends TimeLimited> {
+  times: ManagedEventTimes<T>;
+  functions: LifeCycleFunctions<T>;
+}
+export class ManagedEvent<T extends TimeLimited> 
+implements IEmitter<LifeCycleStates<T>, number> {
+  
+  private scheduled: Map<LifeCycleStates<T>, [IDisposable, IDisposable]>;
+  private emitter: IEmitter<LifeCycleStates<T>, number>;
+  private currentTimes: ManagedEventTimes<T>;
+  private functions: LifeCycleFunctions<T>;
+  
+  constructor(args: ManagedEventArgs<T>) {
+    const { times, functions } = args;
+    this.emitter = new Emitter();
+    this.scheduled = new Map();
+    this.functions = functions;
+    this.times = times;
+  }
+
+  set startTime(startTime: number) {
+    this.times = {
+      ...this.currentTimes,
+      startTime
+    };
+  }
+
+  set duration(duration: number) {
+    this.times = {
+      ...this.currentTimes,
+      duration
+    };
+  }
+
+  dispose(): this {
+    // TODO, call clear?
+    this.emitter.dispose();
+    return this;
+  }
+
+  emit(event: keyof T, ...args: number[]): this {
+    this.emitter.emit(event, ...args);
+    return this;
+  }
+
+  off(event: keyof T, callback?: ((...args: number[]) => void) | undefined): this {
+    this.emitter.off(event, callback);
+    return this;
+  }
+
+  on(event: keyof T, callback: (...args: number[]) => void): this {
+    this.emitter.on(event, callback);
+    return this;
+  }
+
+
+  private set times(times: ManagedEventTimes<T>) {
+    this.currentTimes = times;
+    this.clear();
+    this.schedule();
+  }
+
+  private clear() {
+    this.scheduled.forEach(([countIn, countOut]) => {
+      countIn.dispose();
+      countOut.dispose();
+    });
+    this.scheduled.clear();
+  }
+
+  private schedule() {
+    const { timings, startTime, duration = 0 } = this.currentTimes; 
+    Object.keys(timings).forEach(key => {
+      const inEventKey = `${key}In`;
+      const outEventKey = `${key}Out`;
+      const { countIn, countOut } = timings[key];
+      const countInEvent = new Event(time => {
+        countInEvent.stop();
+        this.functions[key].inEvent(time);
+        this.emit(inEventKey, time);
+      });
+      const constrain = (preLoadTime: number) => {
+        return preLoadTime < Tone.Transport.seconds ?
+          Tone.Transport.seconds : preLoadTime
+      };
+      countInEvent.start(constrain(startTime - countIn));
+      const countOutEvent = new Event(time => {
+        countOutEvent.stop();
+        this.functions[key].outEvent(time);
+        this.emit(outEventKey, time);
+      });
+      countOutEvent.start(startTime + duration + countOut);
+      this.scheduled.set(key, [countInEvent, countOutEvent])
+    });
+  }
 }
 
 export class ManagedAudioEvent implements IAudioEvent {
@@ -65,8 +175,8 @@ export class ManagedAudioEvent implements IAudioEvent {
   private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
   private emitter: IEmitter<AudioStatus, number | string>;
 
-  constructor({startTime, duration = 0, ...otherParams}: ManagedEventArgs) {
-    const { timings = defaultTimings, createPlayer } = otherParams;
+  constructor({startTime, duration = 0, ...otherParams}: ManagedAudioEventArgs) {
+    const { timings = defaultAudioTimings, createPlayer } = otherParams;
     this.emitter = new Emitter();
     this.createPlayer = createPlayer;
     this.timings = timings;
@@ -350,7 +460,7 @@ export async function setupTonePlayers({
   }).map(({createPlayer, options: {startTime, duration}}) => {
     return new ManagedAudioEvent({
       createPlayer,
-      startTime,
+      startTime: new Time(startTime).toSeconds(),
       duration,
       timings
     });

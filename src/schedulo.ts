@@ -11,7 +11,11 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add } from './tone-helpers';
-import { setupTonePlayers, defaultTimings, LifeCycleTimings } from './life-cycle';
+import {
+  setupTonePlayers,
+  defaultAudioTimings,
+  LifeCycleTimings
+} from './life-cycle';
 
 export type BufferLoadingScheme = 'preload' | 'dynamic';
 export interface AdditionalOptions {
@@ -20,7 +24,7 @@ export interface AdditionalOptions {
 }
 
 export const defaultOptions: AdditionalOptions = {
-  timings: defaultTimings,
+  timings: defaultAudioTimings,
   bufferScheme: 'preload'
 };
 
