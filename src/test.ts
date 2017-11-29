@@ -7,9 +7,9 @@ import {
   Subdivision,
   Parameter
 } from './index';
-import { ManagedAudioEvent } from './life-cycle';
+import { ManagedAudioEvent, ManagedEvent } from './life-cycle';
 
-testStateEmitter();
+testManagedEvent();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -165,6 +165,34 @@ async function testStateEmitter() {
   await schedulo.scheduleEvent(() => {
     console.warn('change start time');
     scheduled.forEach(obj => obj.set(Parameter.StartTime, 10));
+  }, Time.At(4.5));
+}
+
+async function testManagedEvent() {
+  const schedulo = new Schedulo();
+  const e = new ManagedEvent({
+    times: {
+      timings: {one: {countIn: 5, countOut: 10}},
+      startTime: 5
+    },
+    functions: {
+      one: {
+        inEvent: time => {
+          console.warn('started', time);
+        },
+        outEvent: time => {
+          console.warn('ended', time);
+        },
+        event: time => {
+          console.warn('event!', time);
+        }
+      }
+    }
+  });
+  schedulo.start();
+  await schedulo.scheduleEvent(() => {
+    console.warn('change start time');
+    e.startTime = 10;
   }, Time.At(4.5));
 }
 
