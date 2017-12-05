@@ -1,4 +1,4 @@
-/// <reference path="./Tone.d.ts" />
+/// <reference path="../Tone.d.ts" />
 import {
   TonejsAudioObject as ToneAudioEvent
 } from './tone-object';
