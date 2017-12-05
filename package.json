@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "main": "lib/index.js",
   "typings": "lib/index",
-  "files": ["lib/"],
+  "files": ["lib/", "Tone.d.ts"],
   "scripts": {
     "test": "mocha test/*.spec.ts --require ts-node/register",
     "prepare": "npm run build",
