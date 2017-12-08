@@ -72,6 +72,23 @@ export class Schedulo implements Scheduler {
       filenameCache: this.filenameCache,
       timings
     }) : [];
+    // if bufferScheme is dynamic, what can we reasonably do?
+    // a lot of the scheduling relies on knowing the duration.
+    // currently, we need to decode the whole file to figure this out.
+
+    // And once we've done that... why would we bother discarding it?
+
+    // I think there are at least two seperate issues here.
+    // If memory usage really is a concern, the handling of cleaning it up
+    // isn't really related to not wanting to wait for all the audio files to load
+
+    // if we assume that decoding will always be done before subsequent audio
+    // needs to played, then we can model this is a sequential chain of events
+    
+    // The process is bootstrapped by an initial async event (decodeAudio),
+    // the rest are then unfolded / cascaded through time
+
+
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
