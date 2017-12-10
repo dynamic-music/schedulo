@@ -23,6 +23,8 @@ export interface SubsetPlayerOptions {
 
 export interface PlayerFactory {
   createPlayer: (startOffset: number) => Player;
+  reverb: AudioNode;
+  delay: AudioNode;
   options: ScheduledOptions;
   buffer: AudioBuffer;
 }
@@ -38,6 +40,8 @@ function sub(t1: string | number, t2: string | number): number {
 export function createPlayerFactoryWithBuffer(
   scheduleOpts: ScheduleOptions,
   playerOpts: SubsetPlayerOptions,
+  reverb: AudioNode,
+  delay: AudioNode,
   buffer: ToneBuffer
 ): PlayerFactory {
   const {startTime, offset = 0} = scheduleOpts;
@@ -74,6 +78,8 @@ export function createPlayerFactoryWithBuffer(
   return {
     createPlayer,
     options: {startTime, offset, duration},
+    reverb,
+    delay,
     buffer: buffer.get()
   };
 }
@@ -81,6 +87,8 @@ export function createPlayerFactoryWithBuffer(
 export function createPlayerFactoryAfterLoadingBuffer(
   scheduleOpts: ScheduleOptions,
   playerOpts: SubsetPlayerOptions,
+  reverb: AudioNode,
+  delay: AudioNode,
   filenameCache: Map<String, AudioBuffer>
 ): Promise<PlayerFactory> {
   const { url } = playerOpts;
@@ -90,7 +98,7 @@ export function createPlayerFactoryAfterLoadingBuffer(
         filenameCache.get(url),
         (loaded: ToneBuffer) => {
           resolve(
-            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
+            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, reverb, delay, loaded)
           );
         },
         (err: string) => reject(err)
@@ -102,7 +110,7 @@ export function createPlayerFactoryAfterLoadingBuffer(
           const buffer = loaded.get();
           filenameCache.set(url, buffer);
           resolve(
-            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
+            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, reverb, delay, loaded)
           );
         },
         (err: string) => reject(err)

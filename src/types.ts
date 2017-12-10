@@ -90,7 +90,9 @@ export module Stop {
 export enum Parameter {
   StartTime,
   Amplitude,
+  Panning,
   Reverb,
+  Delay,
   Loop,
   PlaybackRate
 }
@@ -102,7 +104,7 @@ export interface ScheduledObject {
 }
 
 export type AudioStatus = 'playing' | 'stopped';
-export interface AudioObject extends 
+export interface AudioObject extends
   ScheduledObject, IEmitter<AudioStatus, number | string> {
   set(param: Parameter, value: number): void,
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void,

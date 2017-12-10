@@ -33,6 +33,13 @@ export class Schedulo implements Scheduler {
   private scheduledObjects: EventObject[] = [];
   private currentId = 0;
   private filenameCache = new Map<String, AudioBuffer>();
+  private reverb: AudioNode;
+  private delay: AudioNode;
+
+  constructor() {
+    this.reverb = new Tone.Freeverb().toMaster();
+    this.delay = new Tone.FeedbackDelay().toMaster();
+  }
 
   setLoop(start: number, stop: number): void {
     Tone.Transport.loop = true;
@@ -64,11 +71,15 @@ export class Schedulo implements Scheduler {
   ): Promise<AudioObject[]> {
     const { bufferScheme, timings } = options;
     let time = this.calculateScheduleTime(startTime);
+    const reverb = this.reverb;
+    const delay = this.delay;
     const objects = bufferScheme === 'preload' ? await setupTonePlayers({
       fileUris,
       startTime,
       mode,
       time, // TODO, function args for setupTonePlayers are not ideal
+      reverb,
+      delay,
       filenameCache: this.filenameCache,
       timings
     }) : [];

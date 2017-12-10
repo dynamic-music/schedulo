@@ -13,6 +13,8 @@ type Tone = {
   gainToDb(gain: number): number;
   Event: ToneEventConstructor<any>;
   Emitter: Emitter<Object | Function>;
+  Panner3D: Panner3DConstructor;
+  Volume: VolumeConstructor;
 };
 
 type BarsBeatsSixteenths = string;
@@ -71,6 +73,11 @@ interface ToneBuffer {
   duration: number;
 } // TODO, currently incomplete
 
+interface AudioNode {
+  connect(unit: AudioNode): this;
+  toMaster(): this;
+}
+
 interface PlayerConstructorOptions {
   url: string | ToneBuffer;
   onload?: (player: Player) => void;
@@ -89,19 +96,34 @@ interface PlayerConstructor {
   new(bufferOrOptions: string | ToneBuffer | PlayerConstructorOptions): Player;
 }
 
-interface Player {
+interface Player extends AudioNode {
   buffer: ToneBuffer;
   volume: Signal;
   loop: boolean;
   playbackRate: number;
   loopEnd: number;
   loopStart: number;
-  toMaster(): Player;
   unsync(): Player;
   sync(): Player;
   start(startTime: string | number, offset?: string | number, duration?: string | number): Player;
   stop(offset?: string | number): Player;
   dispose(): void;
+}
+
+interface Volume extends AudioNode {
+  volume: Signal;
+}
+
+interface VolumeConstructor {
+  new(volume: number): Volume;
+}
+
+interface Panner3D extends AudioNode {
+  setPosition(x: number, y: number, z: number): Panner3D;
+}
+
+interface Panner3DConstructor {
+  new(positionX: number, positionY: number, positionZ: number): Panner3D;
 }
 
 interface IToneEvent<T> {
