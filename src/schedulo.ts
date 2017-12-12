@@ -86,47 +86,6 @@ export class Schedulo implements Scheduler {
     return Tone.Transport.seconds;
   }
 
-  async scheduleSingleAudio(
-    fileUri: string,
-    startTime: ScheduleTime,
-    mode: PlaybackMode,
-    options: AdditionalOptions = defaultOptions
-  ): Promise<AudioObject> {
-    // TODO, reduce dupe in setupTonePlayers, and perhaps rename this function
-    const { bufferScheme, timings } = options;
-    // TODO consider not forwarding loop params for use when instantiating
-    // the player. we may never actually want to use the loop flag on a player.
-    // Instead, for consistency, it may make sense to always hand-roll the loop
-    const loop = mode instanceof LoopMode; 
-    let time = this.calculateScheduleTime(startTime);
-    const factory = await createPlayerFactoryAfterLoadingBuffer({
-      scheduleOpts: {
-        startTime: time,
-        offset: mode.offset,
-        duration: mode.duration
-      },
-      playerOpts: {
-        url: fileUri,
-        loop
-      },
-      filenameCache: this.filenameCache 
-    });
-    
-    const startTimeSeconds = new Time(time).toSeconds();
-    const modeOffset = new Time(mode.offset || 0).toSeconds();
-
-    return new ManagedAudioEvent({
-      createPlayer: factory.createPlayer,
-      startTime: startTimeSeconds,
-      timings,
-      effects: {
-        reverb: this.reverb,
-        delay: this.delay
-      }
-      // duration
-    });
-  }
-
   async scheduleAudio(
     fileUris: string[],
     startTime: ScheduleTime,
