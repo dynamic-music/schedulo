@@ -81,9 +81,20 @@ extends ManagedEventTimes<DynamicBufferLifeCycle> {
   effects: Effects;
 }
 
-interface ParameterStateHandling {
-  currentValue: number | number[];
-  handler: (n: number | number[]) => void;
+interface ParameterStateHandling<T> {
+  currentValue: T;
+  handler: (n: T) => void;
+}
+
+type SingleOrMultiValueDispatcher = 
+  StoredValueHandler<number> 
+  | StoredValueHandler<number[]>;
+
+class StoredValueHandler<T> {
+  constructor(public stored: ParameterStateHandling<T>) {}
+  update(): void {
+    this.stored.handler(this.stored.currentValue);
+  }
 }
 
 export class ManagedAudioEvent implements IAudioEvent {
@@ -98,7 +109,7 @@ export class ManagedAudioEvent implements IAudioEvent {
   protected durationDependentKeys: string[]; // TODO, union type instead of string?
   private originalStartTimeSecs: number;
   private timings: LifeCycleTimings;
-  private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
+  private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher>;
   private emitter: IEmitter<AudioStatus, number | string>;
   private player: Player;
   private panner: Panner3D;
@@ -135,54 +146,54 @@ export class ManagedAudioEvent implements IAudioEvent {
     this.startTime = startTime;
     this.parameterDispatchers.set(
       Parameter.Amplitude,
-      {
+      new StoredValueHandler({
         currentValue: 1.0,
-        handler: n => this.player.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.player.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Panning,
-      {
+      new StoredValueHandler({
         currentValue: [0.0, 0.0, 0.0],
-        handler: n => this.panner.setPosition(
-          (<number[]>n)[0], (<number[]>n)[1], (<number[]>n)[2]
+        handler: (n: number[]) => this.panner.setPosition(
+          n[0], n[1], n[2]
         )
-      }
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Reverb,
-      {
+      new StoredValueHandler({
         currentValue: 0.0,
-        handler: n => this.reverbVolume.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.reverbVolume.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Delay,
-      {
+      new StoredValueHandler({
         currentValue: 0.0,
-        handler: n => this.delayVolume.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.delayVolume.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
-      {
+      new StoredValueHandler({
         currentValue: 1.0,
-        handler: n => this.player.playbackRate = <number>n
-      }
+        handler: (n: number) => this.player.playbackRate = n
+      })
     );
     this.parameterDispatchers.set(
       Parameter.StartTime,
-      {
+      new StoredValueHandler({
         currentValue: this.originalStartTimeSecs,
-        handler: n => {
+        handler: (n: number) => {
           const now = Tone.Transport.seconds;
           const isCurrentlyPlaying = now >= this.startTimeSecs &&
             now < this.startTimeSecs + this.durationSecs;
           if (!isCurrentlyPlaying) {
-            this.startTime = <number>n;
+            this.startTime = n;
           }
         }
-      }
+      })
     );
   }
 
@@ -209,13 +220,13 @@ export class ManagedAudioEvent implements IAudioEvent {
     this.calculateEvents();
   }
 
-  set(param: Parameter, value: number): void {
+  set(param: Parameter, value: number | number[]): void {
     const dispatch = this.parameterDispatchers.get(param);
     const player = this.scheduled.get('player');
-    if (dispatch && dispatch.handler) {
-      dispatch.currentValue = value;
+    if (dispatch) {
+      dispatch.stored.currentValue = value;
       if (player) {
-        dispatch.handler(value);
+        dispatch.update();
       }
     }
   }
@@ -271,9 +282,9 @@ export class ManagedAudioEvent implements IAudioEvent {
       this.panner.connect(this.reverbVolume).connect(this.delayVolume);
       this.player = this.createPlayer(startOffset).connect(this.panner);
       this.scheduled.set('player', this.player);
-      this.parameterDispatchers.forEach(({handler, currentValue}, paramType) => {
+      this.parameterDispatchers.forEach((storedValue, paramType) => {
         if (paramType != Parameter.StartTime) { // will cause infinite loop
-          handler(currentValue);
+          storedValue.update();
         }
       });
       connectAndScheduleToPlay.stop();
