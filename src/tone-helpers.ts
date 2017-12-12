@@ -110,18 +110,23 @@ export function createBuffer({
   });
 }
 
-export function createPlayerFactoryAfterLoadingBuffer(
-  scheduleOpts: ScheduleOptions,
-  playerOpts: SubsetPlayerOptions,
-  filenameCache: Map<String, AudioBuffer>
-): Promise<PlayerFactory> {
+export interface CreatePlayerAfterLoadingArgs {
+  scheduleOpts: ScheduleOptions;
+  playerOpts: SubsetPlayerOptions;
+  filenameCache: Map<String, AudioBuffer>;
+}
+export function createPlayerFactoryAfterLoadingBuffer({
+  scheduleOpts,
+  playerOpts,
+  filenameCache
+}: CreatePlayerAfterLoadingArgs): Promise<PlayerFactory> {
   const { url, loop, playbackRate = 1 } = playerOpts;
   const toPlayerFactory = (buffer: ToneBuffer) => {
     return createPlayerFactoryWithBuffer({
       buffer,
       loop,
       playbackRate,
-      ...scheduleOpts,
+      ...scheduleOpts
     });
   }
   return createBuffer({

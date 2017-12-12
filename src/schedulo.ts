@@ -1,3 +1,4 @@
+/// <reference path="../Tone.d.ts" />
 declare var global: any;
 if (typeof window === 'undefined') {
   global.window = {};
@@ -45,11 +46,23 @@ export const defaultOptions: AdditionalOptions = {
   bufferScheme: 'preload'
 };
 
+export interface Effects {
+  reverb: AudioNode;
+  delay: AudioNode;
+}
+
 export class Schedulo implements Scheduler {
 
   private scheduledObjects: EventObject[] = [];
   private currentId = 0;
   private filenameCache = new Map<String, AudioBuffer>();
+  private reverb: AudioNode;
+  private delay: AudioNode;
+
+  constructor() {
+    this.reverb = new Tone.Freeverb().toMaster();
+    this.delay = new Tone.FeedbackDelay().toMaster();
+  }
 
   setLoop(start: number, stop: number): void {
     Tone.Transport.loop = true;
@@ -86,18 +99,18 @@ export class Schedulo implements Scheduler {
     // Instead, for consistency, it may make sense to always hand-roll the loop
     const loop = mode instanceof LoopMode; 
     let time = this.calculateScheduleTime(startTime);
-    const factory = await createPlayerFactoryAfterLoadingBuffer(
-      {
+    const factory = await createPlayerFactoryAfterLoadingBuffer({
+      scheduleOpts: {
         startTime: time,
         offset: mode.offset,
         duration: mode.duration
       },
-      {
+      playerOpts: {
         url: fileUri,
         loop
       },
-      this.filenameCache
-    );
+      filenameCache: this.filenameCache 
+    });
     
     const startTimeSeconds = new Time(time).toSeconds();
     const modeOffset = new Time(mode.offset || 0).toSeconds();
@@ -105,8 +118,12 @@ export class Schedulo implements Scheduler {
     return new ManagedAudioEvent({
       createPlayer: factory.createPlayer,
       startTime: startTimeSeconds,
-      // duration,
-      timings
+      timings,
+      effects: {
+        reverb: this.reverb,
+        delay: this.delay
+      }
+      // duration
     });
   }
 
@@ -123,11 +140,17 @@ export class Schedulo implements Scheduler {
       throw 'Unsupported buffering scheme.';
     }
 
+    const reverb = this.reverb;
+    const delay = this.delay;
     const args = {
       fileUris,
       startTime,
       mode,
       time, // TODO, function args for setupTonePlayers are not ideal
+      effects: {
+        reverb,
+        delay,
+      },
       filenameCache: this.filenameCache,
     };
 

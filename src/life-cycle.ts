@@ -21,6 +21,7 @@ import {
   createBuffer,
   createPlayerFactoryWithBuffer
 } from './tone-helpers';
+import { Effects } from './schedulo';
 
 
 export interface LifeCycleWindow {
@@ -60,7 +61,7 @@ export interface LifeCycleMapping<T> { // TODO rename to something more meaningf
 export type LifeCycleFunctions<Timings extends TimeLimited> = {
   [Key in keyof Timings]: LifeCycleMapping<(time: number) => void>;
 }
- 
+
 export interface ManagedEventTimes<T> {
   startTime: number;
   duration?: number;
@@ -71,21 +72,23 @@ export interface ManagedEventTimes<T> {
 export interface ManagedAudioEventArgs<T extends LifeCycleTimings>
 extends ManagedEventTimes<T> {
   createPlayer: (startOffset: number) => Player;
+  effects: Effects;
 }
 
 export interface DynamicBufferingManagedAudioEventArgs
 extends ManagedEventTimes<DynamicBufferLifeCycle> {
-  bufferResolver: BufferLoader
+  bufferResolver: BufferLoader;
+  effects: Effects;
 }
 
 interface ParameterStateHandling {
-  currentValue: number;
-  handler: (n: number, player: Player) => void;
+  currentValue: number | number[];
+  handler: (n: number | number[]) => void;
 }
 
 export class ManagedAudioEvent implements IAudioEvent {
   /** Event stuff
-   * duration?: string | number | undefined; 
+   * duration?: string | number | undefined;
   * */
   protected startTimeSecs: number;
   protected durationSecs: number;
@@ -97,6 +100,13 @@ export class ManagedAudioEvent implements IAudioEvent {
   private timings: LifeCycleTimings;
   private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
   private emitter: IEmitter<AudioStatus, number | string>;
+  private player: Player;
+  private panner: Panner3D;
+  private reverb: AudioNode;
+  private delay: AudioNode;
+  private reverbVolume: Volume;
+  private delayVolume: Volume;
+
 
   constructor({
     startTime,
@@ -104,10 +114,16 @@ export class ManagedAudioEvent implements IAudioEvent {
     offset = 0,
     ...otherParams
   }: ManagedAudioEventArgs<LifeCycleTimings>){
-    const { timings = defaultAudioTimings, createPlayer } = otherParams;
+    const {
+      timings = defaultAudioTimings,
+      createPlayer,
+      effects
+    } = otherParams;
     this.durationDependentKeys = ['stopped', 'dispose-player'];
     this.emitter = new Emitter();
     this.createPlayer = createPlayer;
+    this.reverb = effects.reverb;
+    this.delay = effects.delay;
     this.timings = timings;
     this.scheduled = new Map();
     this.parameterDispatchers = new Map();
@@ -121,14 +137,37 @@ export class ManagedAudioEvent implements IAudioEvent {
       Parameter.Amplitude,
       {
         currentValue: 1.0,
-        handler: (n, player) => player.volume.value = gainToDb(n)
+        handler: n => this.player.volume.value = gainToDb(<number>n)
+      }
+    );
+    this.parameterDispatchers.set(
+      Parameter.Panning,
+      {
+        currentValue: [0.0, 0.0, 0.0],
+        handler: n => this.panner.setPosition(
+          (<number[]>n)[0], (<number[]>n)[1], (<number[]>n)[2]
+        )
+      }
+    );
+    this.parameterDispatchers.set(
+      Parameter.Reverb,
+      {
+        currentValue: 0.0,
+        handler: n => this.reverbVolume.volume.value = gainToDb(<number>n)
+      }
+    );
+    this.parameterDispatchers.set(
+      Parameter.Delay,
+      {
+        currentValue: 0.0,
+        handler: n => this.delayVolume.volume.value = gainToDb(<number>n)
       }
     );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
       {
         currentValue: 1.0,
-        handler: (n, player) => player.playbackRate = n
+        handler: n => this.player.playbackRate = <number>n
       }
     );
     this.parameterDispatchers.set(
@@ -137,10 +176,10 @@ export class ManagedAudioEvent implements IAudioEvent {
         currentValue: this.originalStartTimeSecs,
         handler: n => {
           const now = Tone.Transport.seconds;
-          const isCurrentlyPlaying = now >= this.startTimeSecs && 
+          const isCurrentlyPlaying = now >= this.startTimeSecs &&
             now < this.startTimeSecs + this.durationSecs;
           if (!isCurrentlyPlaying) {
-            this.startTime = n;
+            this.startTime = <number>n;
           }
         }
       }
@@ -169,29 +208,30 @@ export class ManagedAudioEvent implements IAudioEvent {
     this.startTimeSecs = new Time(t).toSeconds();
     this.calculateEvents();
   }
-  
+
   set(param: Parameter, value: number): void {
     const dispatch = this.parameterDispatchers.get(param);
     const player = this.scheduled.get('player');
     if (dispatch && dispatch.handler) {
       dispatch.currentValue = value;
       if (player) {
-        dispatch.handler(value, player as Player);
+        dispatch.handler(value);
       }
     }
   }
-  
+
   ramp(
     param: Parameter,
     value: number,
     duration: string | number,
     time: string | number
   ): void {
-    throw new Error("Method not implemented."); // TODO 
+    throw new Error("Method not implemented."); // TODO
   }
-  
+
   stop(time: ScheduleTime, mode: StoppingMode): void {
     // TODO stopping modes etc, clean up is different depending on mode
+    this.emit('stopped', Tone.Transport.seconds);
     this.reset();
   }
 
@@ -225,12 +265,15 @@ export class ManagedAudioEvent implements IAudioEvent {
     const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
     const { connectToGraph } = this.timings;
     const connectAndScheduleToPlay = new Event(() => {
-      const player = this.createPlayer(startOffset);
-      player.toMaster();
-      this.scheduled.set('player', player);
+      this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
+      this.delayVolume = new Tone.Volume(0).connect(this.delay);
+      this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
+      this.panner.connect(this.reverbVolume).connect(this.delayVolume);
+      this.player = this.createPlayer(startOffset).connect(this.panner);
+      this.scheduled.set('player', this.player);
       this.parameterDispatchers.forEach(({handler, currentValue}, paramType) => {
         if (paramType != Parameter.StartTime) { // will cause infinite loop
-          handler(currentValue, player);
+          handler(currentValue);
         }
       });
       connectAndScheduleToPlay.stop();
@@ -315,10 +358,8 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
     if (scheduledLoadEvent) {
       scheduledLoadEvent.dispose();
     }
-    console.warn(scheduledLoadEvent);
     const toSchedule = new Event(async () => {
       toSchedule.stop();
-      console.warn('load buffer');
       const buffer = await this.bufferResolver.fetch();
       this.duration = buffer.duration; // TODO looping 
       const playerFactory = createPlayerFactoryWithBuffer({
@@ -330,7 +371,6 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
       });
       this.createPlayer = (startOffset: number) => {
         const player = playerFactory.createPlayer(startOffset);
-        console.warn(this.durationSecs);
         player.sync().start(
           startOffset + this.startTimeSecs,
           this.offsetSecs,
@@ -338,10 +378,8 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
         );
         return player;
       }
-      console.warn('buffer loaded');
     });
     const preLoadTime = time - this.loadBufferTimings.countIn;
-    console.warn('toschedule', preLoadTime);
     toSchedule.start(preLoadTime < Tone.Transport.seconds ? 
       Tone.Transport.seconds : preLoadTime
     );
@@ -366,6 +404,7 @@ export interface SetupPlayerParams {
 }
 export interface SetupPlayerFromFilesParams extends SetupPlayerParams {
   fileUris: string[];
+  effects: Effects;
   filenameCache: Map<String, AudioBuffer>;
 }
 
@@ -447,7 +486,8 @@ export function lazilySetupTonePlayers({
   mode,
   time,
   filenameCache,
-  timings
+  timings,
+  effects
 }: SetupPlayerLazilyFromFiles): ManagedAudioEvent[] {
   if (mode instanceof LoopMode) {
     // TODO change looping model and how durations are supplied to fix this
@@ -459,7 +499,8 @@ export function lazilySetupTonePlayers({
       timings,
       bufferResolver: {
         fetch: () => createBuffer({filenameCache, url})
-      }
+      },
+      effects
     });
   });
 }
@@ -469,23 +510,24 @@ export async function setupTonePlayers({
   startTime,
   mode,
   time,
+  effects,
   filenameCache,
   timings
 }: SetupPlayerFromFilesParams): Promise<ManagedAudioEvent[]> {
   const loop = mode instanceof LoopMode;
   const factories = await Promise.all(fileUris.map(f =>
-    createPlayerFactoryAfterLoadingBuffer(
-      {
+    createPlayerFactoryAfterLoadingBuffer({
+      scheduleOpts: {
         startTime: time,
         offset: mode.offset,
         duration: mode.duration
       },
-      {
+      playerOpts: {
         url: f,
         loop
       },
       filenameCache
-    )
+    })
   ));
 
   return toLoopingPlayerFactories({
@@ -497,6 +539,7 @@ export async function setupTonePlayers({
   }).map(({createPlayer, options: {startTime, duration}}) => {
     return new ManagedAudioEvent({
       createPlayer,
+      effects,
       startTime: new Time(startTime).toSeconds(),
       duration,
       timings
