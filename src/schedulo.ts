@@ -4,24 +4,41 @@ if (typeof window === 'undefined') {
 }
 
 import * as Tone from 'tone';
-import { Time, Player } from 'tone';
+import { Time, Player, Event as ToneEvent } from 'tone';
 import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
   PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
-import { add } from './tone-helpers';
+import { add, createPlayerFactoryAfterLoadingBuffer } from './tone-helpers';
 import {
   setupTonePlayers,
   defaultAudioTimings,
-  LifeCycleTimings
+  LifeCycleTimings,
+  ManagedAudioEvent,
+  lazilySetupTonePlayers,
+  DynamicBufferLifeCycle
 } from './life-cycle';
 
 export type BufferLoadingScheme = 'preload' | 'dynamic';
-export interface AdditionalOptions {
-  timings: LifeCycleTimings;
-  bufferScheme: BufferLoadingScheme;
+export interface LoadingConfig<
+  Tag extends BufferLoadingScheme,
+  Timings extends LifeCycleTimings
+> {
+  timings: Timings;
+  bufferScheme: Tag;
 }
+
+export interface PreloadConfig extends LoadingConfig<
+  'preload',
+  LifeCycleTimings
+> {};
+export interface DynamicConfig extends LoadingConfig<
+  'dynamic',
+  DynamicBufferLifeCycle
+> {};
+
+export type AdditionalOptions = PreloadConfig | DynamicConfig;
 
 export const defaultOptions: AdditionalOptions = {
   timings: defaultAudioTimings,
@@ -56,6 +73,43 @@ export class Schedulo implements Scheduler {
     return Tone.Transport.seconds;
   }
 
+  async scheduleSingleAudio(
+    fileUri: string,
+    startTime: ScheduleTime,
+    mode: PlaybackMode,
+    options: AdditionalOptions = defaultOptions
+  ): Promise<AudioObject> {
+    // TODO, reduce dupe in setupTonePlayers, and perhaps rename this function
+    const { bufferScheme, timings } = options;
+    // TODO consider not forwarding loop params for use when instantiating
+    // the player. we may never actually want to use the loop flag on a player.
+    // Instead, for consistency, it may make sense to always hand-roll the loop
+    const loop = mode instanceof LoopMode; 
+    let time = this.calculateScheduleTime(startTime);
+    const factory = await createPlayerFactoryAfterLoadingBuffer(
+      {
+        startTime: time,
+        offset: mode.offset,
+        duration: mode.duration
+      },
+      {
+        url: fileUri,
+        loop
+      },
+      this.filenameCache
+    );
+    
+    const startTimeSeconds = new Time(time).toSeconds();
+    const modeOffset = new Time(mode.offset || 0).toSeconds();
+
+    return new ManagedAudioEvent({
+      createPlayer: factory.createPlayer,
+      startTime: startTimeSeconds,
+      // duration,
+      timings
+    });
+  }
+
   async scheduleAudio(
     fileUris: string[],
     startTime: ScheduleTime,
@@ -64,31 +118,36 @@ export class Schedulo implements Scheduler {
   ): Promise<AudioObject[]> {
     const { bufferScheme, timings } = options;
     let time = this.calculateScheduleTime(startTime);
-    const objects = bufferScheme === 'preload' ? await setupTonePlayers({
+
+    if (!['preload', 'dynamic'].includes(bufferScheme)) {
+      throw 'Unsupported buffering scheme.';
+    }
+
+    const args = {
       fileUris,
       startTime,
       mode,
       time, // TODO, function args for setupTonePlayers are not ideal
       filenameCache: this.filenameCache,
-      timings
-    }) : [];
-    // if bufferScheme is dynamic, what can we reasonably do?
-    // a lot of the scheduling relies on knowing the duration.
-    // currently, we need to decode the whole file to figure this out.
+    };
 
-    // And once we've done that... why would we bother discarding it?
+    const createPlayers = () => {
+      // annoyingly TypeScript can't deduce options.timings without
+      // explictily writing out something like this...
+      if (options.bufferScheme === 'dynamic') {
+        return lazilySetupTonePlayers({
+          ...args,
+          timings: options.timings
+        });
+      } else {
+        return setupTonePlayers({
+          ...args,
+          timings
+        });
+      }
+    };
 
-    // I think there are at least two seperate issues here.
-    // If memory usage really is a concern, the handling of cleaning it up
-    // isn't really related to not wanting to wait for all the audio files to load
-
-    // if we assume that decoding will always be done before subsequent audio
-    // needs to played, then we can model this is a sequential chain of events
-    
-    // The process is bootstrapped by an initial async event (decodeAudio),
-    // the rest are then unfolded / cascaded through time
-
-
+    const objects = await createPlayers();
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -122,6 +181,15 @@ export class Schedulo implements Scheduler {
 
   private calculateScheduleTime(time: ScheduleTime): string | number {
     if (time instanceof ScheduleAfter) {
+      // TODO this isn't going to work for objects with an indeterminate duration.
+      // This is only really complicated by the fact that we want to be able to
+      // loop audio continuiously, i.e. n repeats is not known ahead of time.
+      // Looping will eventually stop based on some external event, and so
+      // at some unknown point in the future, it eventually ends.
+      // Unfortunately, unless it is possible to obtain the explicit eventual
+      // stop time prior to it occuring, there is going to be a delay in scheduling
+      // the next event. Either way, we can't know any time upfront...
+      // so this needs rethinking
       return calculateEndTime(time.objects);
     } else if (time instanceof ScheduleAt) {
       return time.at;

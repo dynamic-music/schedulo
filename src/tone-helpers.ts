@@ -36,16 +36,17 @@ function sub(t1: string | number, t2: string | number): number {
 }
 
 export function createPlayerFactoryWithBuffer(
-  scheduleOpts: ScheduleOptions,
-  playerOpts: SubsetPlayerOptions,
-  buffer: ToneBuffer
+  args: ScheduleOptions & {
+    loop: boolean;
+    buffer: ToneBuffer;
+    playbackRate?: number;
+  },
 ): PlayerFactory {
-  const {startTime, offset = 0} = scheduleOpts;
-  const {url, ...otherOpts} = playerOpts;
+  const {startTime, offset = 0, buffer, ...otherOpts} = args;
 
   const calculateDuration = (
     buffer: AudioBuffer,
-    {duration} = scheduleOpts
+    {duration} = otherOpts
   ): number => {
     return duration ?
       new Time(duration).toSeconds() :
@@ -53,7 +54,7 @@ export function createPlayerFactoryWithBuffer(
   };
 
   const setLoopPoints = (player: Player, duration: number) => {
-    if (playerOpts.loop) {
+    if (otherOpts.loop) {
       player.loopStart = new Time(offset).toSeconds();
       player.loopEnd = add(duration, offset);
     }
@@ -78,20 +79,20 @@ export function createPlayerFactoryWithBuffer(
   };
 }
 
-export function createPlayerFactoryAfterLoadingBuffer(
-  scheduleOpts: ScheduleOptions,
-  playerOpts: SubsetPlayerOptions,
-  filenameCache: Map<String, AudioBuffer>
-): Promise<PlayerFactory> {
-  const { url } = playerOpts;
+export interface CreateBufferParams {
+  url: string;
+  filenameCache: Map<String, AudioBuffer>;
+}
+export function createBuffer({
+  filenameCache,
+  url
+}: CreateBufferParams): Promise<ToneBuffer> {
   return new Promise((resolve, reject) => {
     if (filenameCache.has(url)) {
       const buffer = new Tone.Buffer(
         filenameCache.get(url),
         (loaded: ToneBuffer) => {
-          resolve(
-            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
-          );
+          resolve(loaded);
         },
         (err: string) => reject(err)
       );
@@ -101,12 +102,30 @@ export function createPlayerFactoryAfterLoadingBuffer(
         (loaded: ToneBuffer) => {
           const buffer = loaded.get();
           filenameCache.set(url, buffer);
-          resolve(
-            createPlayerFactoryWithBuffer(scheduleOpts, playerOpts, loaded)
-          );
+          resolve(loaded);
         },
         (err: string) => reject(err)
       );
     }
   });
+}
+
+export function createPlayerFactoryAfterLoadingBuffer(
+  scheduleOpts: ScheduleOptions,
+  playerOpts: SubsetPlayerOptions,
+  filenameCache: Map<String, AudioBuffer>
+): Promise<PlayerFactory> {
+  const { url, loop, playbackRate = 1 } = playerOpts;
+  const toPlayerFactory = (buffer: ToneBuffer) => {
+    return createPlayerFactoryWithBuffer({
+      buffer,
+      loop,
+      playbackRate,
+      ...scheduleOpts,
+    });
+  }
+  return createBuffer({
+    url,
+    filenameCache
+  }).then(toPlayerFactory);
 }
