@@ -54,7 +54,6 @@ export interface Effects {
 export class Schedulo implements Scheduler {
 
   private scheduledObjects: EventObject[] = [];
-  private currentId = 0;
   private filenameCache = new Map<String, AudioBuffer>();
   private reverb: AudioNode;
   private delay: AudioNode;
