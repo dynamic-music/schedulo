@@ -17,8 +17,11 @@ import { calculateScheduleTimes, toBufferSegment } from './looping';
 import {
   createPlayerFactoryAfterLoadingBuffer,
   PlayerFactory,
-  add
+  add,
+  createBuffer,
+  createPlayerFactoryWithBuffer
 } from './tone-helpers';
+import { Effects } from './schedulo';
 
 
 export interface LifeCycleWindow {
@@ -34,7 +37,14 @@ export interface LifeCycleTimings {
   connectToGraph: LifeCycleWindow;
 }
 
-interface IDisposable {
+export interface BufferLoader {
+  fetch(): Promise<ToneBuffer>;
+}
+export interface DynamicBufferLifeCycle extends LifeCycleTimings {
+  loadBuffer: LifeCycleWindow;
+}
+
+export interface IDisposable {
   dispose(): void;
 }
 
@@ -55,131 +65,35 @@ export type LifeCycleFunctions<Timings extends TimeLimited> = {
 export interface ManagedEventTimes<T> {
   startTime: number;
   duration?: number;
+  offset?: number;
   timings: T;
 }
 
-export interface ManagedAudioEventArgs
-extends ManagedEventTimes<LifeCycleTimings> {
+export interface ManagedAudioEventArgs<T extends LifeCycleTimings>
+extends ManagedEventTimes<T> {
   createPlayer: (startOffset: number) => Player;
-  reverb: AudioNode;
-  delay: AudioNode;
+  effects: Effects;
 }
 
-interface ParameterStateHandling {
-  currentValue: number | number[];
-  handler: (n: number | number[]) => void;
+export interface DynamicBufferingManagedAudioEventArgs
+extends ManagedEventTimes<DynamicBufferLifeCycle> {
+  bufferResolver: BufferLoader;
+  effects: Effects;
 }
 
-export interface ManagedEventArgs<T extends TimeLimited> {
-  times: ManagedEventTimes<T>;
-  functions: LifeCycleFunctions<T>;
+interface ParameterStateHandling<T> {
+  currentValue: T;
+  handler: (n: T) => void;
 }
-export class ManagedEvent<T extends TimeLimited>
-implements IEmitter<LifeCycleStates<T>, number> {
 
-  private scheduled: Map<LifeCycleStates<T>, LifeCycleMapping<IDisposable>>;
-  private emitter: IEmitter<LifeCycleStates<T>, number>;
-  private currentTimes: ManagedEventTimes<T>;
-  private functions: LifeCycleFunctions<T>;
+type SingleOrMultiValueDispatcher = 
+  StoredValueHandler<number> 
+  | StoredValueHandler<number[]>;
 
-  constructor(args: ManagedEventArgs<T>) {
-    const { times, functions } = args;
-    this.emitter = new Emitter();
-    this.scheduled = new Map();
-    this.functions = functions;
-    this.times = times;
-  }
-
-  set startTime(startTime: number) {
-    this.times = {
-      ...this.currentTimes,
-      startTime
-    };
-  }
-
-  set duration(duration: number) {
-    this.times = {
-      ...this.currentTimes,
-      duration
-    };
-  }
-
-  dispose(): this {
-    this.clear();
-    this.emitter.dispose();
-    return this;
-  }
-
-  emit(event: keyof T, ...args: number[]): this {
-    this.emitter.emit(event, ...args);
-    return this;
-  }
-
-  off(event: keyof T, callback?: ((...args: number[]) => void) | undefined): this {
-    this.emitter.off(event, callback);
-    return this;
-  }
-
-  on(event: keyof T, callback: (...args: number[]) => void): this {
-    this.emitter.on(event, callback);
-    return this;
-  }
-
-
-  private set times(times: ManagedEventTimes<T>) {
-    this.currentTimes = times;
-    this.clear();
-    this.schedule();
-  }
-
-  private clear() {
-    this.scheduled.forEach(({inEvent, outEvent, event}) => {
-      inEvent.dispose();
-      outEvent.dispose();
-      event.dispose();
-    });
-    this.scheduled.clear();
-  }
-
-  private schedule() {
-    const { timings, startTime, duration = 0 } = this.currentTimes;
-    Object.keys(timings).forEach(key => {
-      const { countIn, countOut } = timings[key];
-      const constrain = (preLoadTime: number) => {
-        return preLoadTime < Tone.Transport.seconds ?
-          Tone.Transport.seconds : preLoadTime
-      };
-
-      const createEvent = (
-        key: string,
-        event: (t: number) => void,
-        startTime: number
-      ) => {
-        const e = new Event(time => {
-          e.stop(); // TODO is this necessary?
-          event(time);
-          this.emit(key, startTime);
-        });
-        e.start(startTime);
-        return e;
-      };
-
-      const { inEvent, outEvent, event } = this.functions[key];
-
-      this.scheduled.set(key, {
-        inEvent: createEvent(
-          `${key}In`,
-          inEvent,
-          constrain(startTime - countIn)
-        ),
-        outEvent: createEvent(
-          `${key}Out`,
-          outEvent,
-          startTime + duration + countOut
-        ),
-        event: createEvent(key, event, startTime)
-      });
-    });
+class StoredValueHandler<T> {
+  constructor(public stored: ParameterStateHandling<T>) {}
+  update(): void {
+    this.stored.handler(this.stored.currentValue);
   }
 }
 
@@ -187,13 +101,15 @@ export class ManagedAudioEvent implements IAudioEvent {
   /** Event stuff
    * duration?: string | number | undefined;
   * */
-  private scheduled: Map<string, IDisposable>; // TODO, could this just be an array?
+  protected startTimeSecs: number;
+  protected durationSecs: number;
+  protected offsetSecs: number;
+  protected createPlayer: (startOffset: number) => Player;
+  protected scheduled: Map<string, IDisposable>; // TODO, could this just be an array?
+  protected durationDependentKeys: string[]; // TODO, union type instead of string?
   private originalStartTimeSecs: number;
-  private startTimeSecs: number;
-  private durationSecs: number;
   private timings: LifeCycleTimings;
-  private createPlayer: (startOffset: number) => Player;
-  private parameterDispatchers: Map<Parameter, ParameterStateHandling>;
+  private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher>;
   private emitter: IEmitter<AudioStatus, number | string>;
   private player: Player;
   private panner: Panner3D;
@@ -203,71 +119,81 @@ export class ManagedAudioEvent implements IAudioEvent {
   private delayVolume: Volume;
 
 
-  constructor({startTime, duration = 0, ...otherParams}: ManagedAudioEventArgs) {
-    const { timings = defaultAudioTimings, createPlayer,
-      reverb, delay } = otherParams;
+  constructor({
+    startTime,
+    duration = 0,
+    offset = 0,
+    ...otherParams
+  }: ManagedAudioEventArgs<LifeCycleTimings>){
+    const {
+      timings = defaultAudioTimings,
+      createPlayer,
+      effects
+    } = otherParams;
+    this.durationDependentKeys = ['stopped', 'dispose-player'];
     this.emitter = new Emitter();
     this.createPlayer = createPlayer;
-    this.reverb = reverb;
-    this.delay = delay;
+    this.reverb = effects.reverb;
+    this.delay = effects.delay;
     this.timings = timings;
     this.scheduled = new Map();
     this.parameterDispatchers = new Map();
     this.startTimeSecs = new Time(startTime).toSeconds();
     this.originalStartTimeSecs = this.startTimeSecs;
     this.durationSecs = new Time(duration).toSeconds();
+    this.offsetSecs = new Time(offset).toSeconds();
     // TODO above might not be needed, i.e. the setter for startTime takes care of it
     this.startTime = startTime;
     this.parameterDispatchers.set(
       Parameter.Amplitude,
-      {
+      new StoredValueHandler({
         currentValue: 1.0,
-        handler: n => this.player.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.player.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Panning,
-      {
+      new StoredValueHandler({
         currentValue: [0.0, 0.0, 0.0],
-        handler: n => this.panner.setPosition(
-          (<number[]>n)[0], (<number[]>n)[1], (<number[]>n)[2]
+        handler: (n: number[]) => this.panner.setPosition(
+          n[0], n[1], n[2]
         )
-      }
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Reverb,
-      {
+      new StoredValueHandler({
         currentValue: 0.0,
-        handler: n => this.reverbVolume.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.reverbVolume.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.Delay,
-      {
+      new StoredValueHandler({
         currentValue: 0.0,
-        handler: n => this.delayVolume.volume.value = gainToDb(<number>n)
-      }
+        handler: (n: number) => this.delayVolume.volume.value = gainToDb(n)
+      })
     );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
-      {
+      new StoredValueHandler({
         currentValue: 1.0,
-        handler: n => this.player.playbackRate = <number>n
-      }
+        handler: (n: number) => this.player.playbackRate = n
+      })
     );
     this.parameterDispatchers.set(
       Parameter.StartTime,
-      {
+      new StoredValueHandler({
         currentValue: this.originalStartTimeSecs,
-        handler: n => {
+        handler: (n: number) => {
           const now = Tone.Transport.seconds;
           const isCurrentlyPlaying = now >= this.startTimeSecs &&
             now < this.startTimeSecs + this.durationSecs;
           if (!isCurrentlyPlaying) {
-            this.startTime = <number>n;
+            this.startTime = n;
           }
         }
-      }
+      })
     );
   }
 
@@ -275,77 +201,32 @@ export class ManagedAudioEvent implements IAudioEvent {
     return this.durationSecs;
   }
 
+  set duration(d: string | number) {
+    this.durationSecs = new Time(d).toSeconds();
+    this.scheduled.forEach((e, key) => {
+      if (this.durationDependentKeys.includes(key)) {
+        e.dispose();
+      }
+    });
+    this.calculateDurationDependentEvents();
+  }
+
   get startTime(): number | string {
     return this.startTimeSecs;
   }
 
   set startTime(t: number | string) {
-    // TODO shift events etc
-    if (this.scheduled) {
-      this.reset();
-    }
     this.startTimeSecs = new Time(t).toSeconds();
-    const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
-    const { connectToGraph } = this.timings;
-    // check relative to current time? not negative? etc
-    // schedule to create the player (i.e. connect to graph)
-    // at the given time minus the managed timing for this object
-    // schedule to play at the given offset
-    const disconnectAndDispose = new Event(() => {
-      const player = this.scheduled.get('player');
-      if (player) {
-        player.dispose();
-        this.scheduled.delete('player');
-      }
-      disconnectAndDispose.stop();
-    });
-    disconnectAndDispose.start(
-      this.startTimeSecs + this.durationSecs + connectToGraph.countOut
-    );
-    this.scheduled.set('dispose', disconnectAndDispose);
-
-    const connectAndScheduleToPlay = new Event(() => {
-      // TODO, de-couple buffer loading from player creation
-      this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
-      this.delayVolume = new Tone.Volume(0).connect(this.delay);
-      this.panner = new Tone.Panner3D(0, 0, 0).toMaster()
-        .connect(this.reverbVolume).connect(this.delayVolume);
-      this.player = this.createPlayer(startOffset).connect(this.panner);
-      this.scheduled.set('player', this.player);
-      this.parameterDispatchers.forEach(({handler, currentValue}, paramType) => {
-        if (paramType != Parameter.StartTime) { // will cause infinite loop
-          handler(currentValue);
-        }
-      });
-      connectAndScheduleToPlay.stop();
-    });
-    const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
-    connectAndScheduleToPlay.start(preLoadTime < Tone.Transport.seconds ?
-      Tone.Transport.seconds : preLoadTime
-    );
-    this.scheduled.set('connect', connectAndScheduleToPlay);
-    // naively fire events which ought to align with when the player starts and stops
-    const isPlaying = new Event(time => {
-      this.emit('playing', time);
-      isPlaying.stop();
-    });
-    const hasStopped = new Event(time => {
-      this.emit('stopped', time);
-      hasStopped.stop();
-    });
-    this.scheduled.set('playing', isPlaying);
-    this.scheduled.set('stopped', hasStopped);
-    isPlaying.start(this.startTimeSecs);
-    hasStopped.start(this.startTimeSecs + this.durationSecs);
+    this.calculateEvents();
   }
 
-  set(param: Parameter, value: number): void {
+  set(param: Parameter, value: number | number[]): void {
     const dispatch = this.parameterDispatchers.get(param);
     const player = this.scheduled.get('player');
-    if (dispatch && dispatch.handler) {
-      dispatch.currentValue = value;
+    if (dispatch) {
+      dispatch.stored.currentValue = value;
       if (player) {
-        dispatch.handler(value);
+        dispatch.update();
       }
     }
   }
@@ -391,9 +272,129 @@ export class ManagedAudioEvent implements IAudioEvent {
     return this;
   }
 
+  protected calculateStartTimeDependentEvents() {
+    const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
+    const { connectToGraph } = this.timings;
+    const connectAndScheduleToPlay = new Event(() => {
+      this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
+      this.delayVolume = new Tone.Volume(0).connect(this.delay);
+      this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
+      this.panner.connect(this.reverbVolume).connect(this.delayVolume);
+      this.player = this.createPlayer(startOffset).connect(this.panner);
+      this.scheduled.set('player', this.player);
+      this.parameterDispatchers.forEach((storedValue, paramType) => {
+        if (paramType != Parameter.StartTime) { // will cause infinite loop
+          storedValue.update();
+        }
+      });
+      connectAndScheduleToPlay.stop();
+    });
+    const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
+    connectAndScheduleToPlay.start(preLoadTime < Tone.Transport.seconds ? 
+      Tone.Transport.seconds : preLoadTime
+    );
+    this.scheduled.set('connect', connectAndScheduleToPlay);
+    const isPlaying = new Event(time => {
+      this.emit('playing', time);
+      isPlaying.stop();
+    });
+    this.scheduled.set('playing', isPlaying);
+    isPlaying.start(this.startTimeSecs);
+  }
+
+  protected calculateDurationDependentEvents() {
+    const { connectToGraph } = this.timings;
+    const disconnectAndDispose = new Event(() => {
+      const player = this.scheduled.get('player');
+      if (player) {
+        player.dispose();
+        this.scheduled.delete('player');
+      }
+      disconnectAndDispose.stop();
+    });
+    disconnectAndDispose.start(
+      this.startTimeSecs + this.durationSecs + connectToGraph.countOut
+    );
+    this.scheduled.set('dispose-player', disconnectAndDispose);
+    const hasStopped = new Event(time => {
+      this.emit('stopped', time);
+      hasStopped.stop();
+    });
+    this.scheduled.set('stopped', hasStopped);
+    hasStopped.start(this.startTimeSecs + this.durationSecs);
+  }
+
+  protected calculateEvents() {
+    if (this.scheduled) {
+      this.reset();
+    }
+    this.calculateStartTimeDependentEvents();
+    this.calculateDurationDependentEvents();
+  }
+
   private reset() {
     this.scheduled.forEach(event => event.dispose());
     this.scheduled = new Map();
+  }
+}
+
+export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
+  private bufferResolver: BufferLoader;
+  private loadBufferTimings: LifeCycleWindow;
+
+  constructor({
+    bufferResolver,
+    ...args
+  }: DynamicBufferingManagedAudioEventArgs) {
+    super({
+      ...args,
+      createPlayer: (n: number) => new Tone.Player({}) // needs to be replaced later
+    });
+    const {loadBuffer} = args.timings;
+    this.loadBufferTimings = loadBuffer; 
+    this.bufferResolver = bufferResolver;
+    // we need to reset, super() already set up stuff on the timeline
+    this.startTime = args.startTime;
+  }
+
+  protected calculateEvents() {
+    super.calculateEvents();
+    if (this.loadBufferTimings) {
+      this.setupLoadEvent(this.startTimeSecs);
+    }
+  }
+
+  private setupLoadEvent(time: number) {
+    const scheduledLoadEvent = this.scheduled.get('loaded');
+    if (scheduledLoadEvent) {
+      scheduledLoadEvent.dispose();
+    }
+    const toSchedule = new Event(async () => {
+      toSchedule.stop();
+      const buffer = await this.bufferResolver.fetch();
+      this.duration = buffer.duration; // TODO looping 
+      const playerFactory = createPlayerFactoryWithBuffer({
+        startTime: time,
+        offset: this.offsetSecs,
+        duration: this.durationSecs,
+        loop: false, // TODO, can't loop until dynamic looping is implemented
+        buffer
+      });
+      this.createPlayer = (startOffset: number) => {
+        const player = playerFactory.createPlayer(startOffset);
+        player.sync().start(
+          startOffset + this.startTimeSecs,
+          this.offsetSecs,
+          this.durationSecs
+        );
+        return player;
+      }
+    });
+    const preLoadTime = time - this.loadBufferTimings.countIn;
+    toSchedule.start(preLoadTime < Tone.Transport.seconds ? 
+      Tone.Transport.seconds : preLoadTime
+    );
+    this.scheduled.set('loaded', toSchedule);
   }
 }
 
@@ -404,7 +405,6 @@ interface ScheduleToLoadArgs {
 }
 
 // TODO, tidy - this is pretty messy
-// TODO, seperate buffer loading from player instantiation
 // TODO, the 'looping' logic is mixed up in this too - bad idea?
 
 export interface SetupPlayerParams {
@@ -415,9 +415,12 @@ export interface SetupPlayerParams {
 }
 export interface SetupPlayerFromFilesParams extends SetupPlayerParams {
   fileUris: string[];
-  reverb: AudioNode;
-  delay: AudioNode;
+  effects: Effects;
   filenameCache: Map<String, AudioBuffer>;
+}
+
+export interface SetupPlayerLazilyFromFiles extends SetupPlayerFromFilesParams {
+  timings: DynamicBufferLifeCycle;
 }
 
 export interface SetupEventsWithFactories extends SetupPlayerParams {
@@ -437,7 +440,7 @@ function toLoopingPlayerFactories({
   const scheduleTimes = hasRepeats && mode instanceof LoopMode ?
     calculateScheduleTimes(
       times,
-      factories.map(({createPlayer, options, reverb, delay, buffer}) => {
+      factories.map(({createPlayer, options, buffer}) => {
         const {offset, duration} = options;
         return toBufferSegment(buffer, {
           offset: new Time(offset).toSeconds(),
@@ -452,7 +455,7 @@ function toLoopingPlayerFactories({
       duration: null
     };
 
-  return factories.map(({createPlayer, options, reverb, delay, buffer}, i) => {
+  return factories.map(({createPlayer, options, buffer}, i) => {
     const {startTime, offset, duration} = options;
     const wrapped = (startOffset: number = 0.0) => {
       const player = createPlayer(startOffset);
@@ -483,10 +486,33 @@ function toLoopingPlayerFactories({
         ...options,
         duration: scheduleTimes.duration || duration // TODO, is this correct?
       },
-      reverb,
-      delay,
       buffer
     }
+  });
+}
+
+export function lazilySetupTonePlayers({
+  fileUris,
+  startTime,
+  mode,
+  time,
+  filenameCache,
+  timings,
+  effects
+}: SetupPlayerLazilyFromFiles): ManagedAudioEvent[] {
+  if (mode instanceof LoopMode) {
+    // TODO change looping model and how durations are supplied to fix this
+    throw "Looping not supported when scheduling buffers dynamically.";
+  }
+  return fileUris.map(url => {
+    return new DynamicBufferingManagedAudioEvent({
+      startTime: new Time(time).toSeconds(),
+      timings,
+      bufferResolver: {
+        fetch: () => createBuffer({filenameCache, url})
+      },
+      effects
+    });
   });
 }
 
@@ -495,27 +521,24 @@ export async function setupTonePlayers({
   startTime,
   mode,
   time,
-  reverb,
-  delay,
+  effects,
   filenameCache,
   timings
 }: SetupPlayerFromFilesParams): Promise<ManagedAudioEvent[]> {
   const loop = mode instanceof LoopMode;
   const factories = await Promise.all(fileUris.map(f =>
-    createPlayerFactoryAfterLoadingBuffer(
-      {
+    createPlayerFactoryAfterLoadingBuffer({
+      scheduleOpts: {
         startTime: time,
         offset: mode.offset,
         duration: mode.duration
       },
-      {
+      playerOpts: {
         url: f,
         loop
       },
-      reverb,
-      delay,
       filenameCache
-    )
+    })
   ));
 
   return toLoopingPlayerFactories({
@@ -524,11 +547,10 @@ export async function setupTonePlayers({
     mode,
     time,
     timings
-  }).map(({createPlayer, reverb, delay, options: {startTime, duration}}) => {
+  }).map(({createPlayer, options: {startTime, duration}}) => {
     return new ManagedAudioEvent({
       createPlayer,
-      reverb,
-      delay,
+      effects,
       startTime: new Time(startTime).toSeconds(),
       duration,
       timings

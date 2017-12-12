@@ -7,9 +7,9 @@ import {
   Subdivision,
   Parameter
 } from './index';
-import { ManagedAudioEvent, ManagedEvent } from './life-cycle';
+import { ManagedAudioEvent } from './life-cycle';
 
-testManagedEvent();
+testLazyScheduling();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -168,32 +168,33 @@ async function testStateEmitter() {
   }, Time.At(4.5));
 }
 
-async function testManagedEvent() {
+async function testLazyScheduling() {
   const schedulo = new Schedulo();
-  const e = new ManagedEvent({
-    times: {
-      timings: {one: {countIn: 5, countOut: 10}},
-      startTime: 5
-    },
-    functions: {
-      one: {
-        inEvent: time => {
-          console.warn('started', time);
-        },
-        outEvent: time => {
-          console.warn('ended', time);
-        },
-        event: time => {
-          console.warn('event!', time);
-        }
+  const one = await schedulo.scheduleAudio(
+    ['./loops/1.wav'],
+    Time.At(6.0),
+    Playback.Oneshot(),
+    {
+      bufferScheme: 'dynamic',
+      timings: {
+        connectToGraph: {countIn: 2, countOut: 2},
+        loadBuffer: {countIn: 5, countOut: 5}
       }
     }
-  });
+  );
+  const two = await schedulo.scheduleAudio(
+    ['./loops/short.wav'],
+    Time.At(10.0),
+    Playback.Oneshot(),
+    {
+      bufferScheme: 'dynamic',
+      timings: {
+        connectToGraph: {countIn: 2, countOut: 2},
+        loadBuffer: {countIn: 5, countOut: 5}
+      }
+    }
+  );
   schedulo.start();
-  await schedulo.scheduleEvent(() => {
-    console.warn('change start time');
-    e.startTime = 10;
-  }, Time.At(4.5));
 }
 
 /*

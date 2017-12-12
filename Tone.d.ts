@@ -79,7 +79,7 @@ interface AudioNode {
 }
 
 interface PlayerConstructorOptions {
-  url: string | ToneBuffer;
+  url?: string | ToneBuffer;
   onload?: (player: Player) => void;
   playbackRate?: number;
   loop?: boolean;
