@@ -97,6 +97,12 @@ class StoredValueHandler<T> {
   }
 }
 
+// Tone.js won't schedule an event if it isn't in the future,
+// so this function checks against "now" and adds a small offset
+function calculateStartTime(ideal: number, now: number, delta: number = 0.1) {
+  return ideal <= now ? now + delta : ideal;
+}
+
 export class ManagedAudioEvent implements IAudioEvent {
   /** Event stuff
    * duration?: string | number | undefined;
@@ -107,6 +113,8 @@ export class ManagedAudioEvent implements IAudioEvent {
   protected createPlayer: (startOffset: number) => Player;
   protected scheduled: Map<string, IDisposable>; // TODO, could this just be an array?
   protected durationDependentKeys: string[]; // TODO, union type instead of string?
+  protected startTimeDependentKeys: string[]; // TODO, union type instead of string?
+  protected hasScheduledEmptyPlayer: boolean;
   private originalStartTimeSecs: number;
   private timings: LifeCycleTimings;
   private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher>;
@@ -130,7 +138,9 @@ export class ManagedAudioEvent implements IAudioEvent {
       createPlayer,
       effects
     } = otherParams;
+    this.hasScheduledEmptyPlayer = false;
     this.durationDependentKeys = ['stopped', 'dispose-player'];
+    this.startTimeDependentKeys = ['player', 'connect', 'playing'];
     this.emitter = new Emitter();
     this.createPlayer = createPlayer;
     this.reverb = effects.reverb;
@@ -272,7 +282,7 @@ export class ManagedAudioEvent implements IAudioEvent {
     return this;
   }
 
-  protected calculateStartTimeDependentEvents() {
+  protected calculateStartTimeDependentEvents(): boolean {
     const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
     const { connectToGraph } = this.timings;
     const connectAndScheduleToPlay = new Event(() => {
@@ -281,6 +291,11 @@ export class ManagedAudioEvent implements IAudioEvent {
       this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
       this.panner.connect(this.reverbVolume).connect(this.delayVolume);
       this.player = this.createPlayer(startOffset).connect(this.panner);
+      if (!this.player.buffer.duration) {
+        this.hasScheduledEmptyPlayer = true;
+        // bail out of doing any further scheduling if we aren't ready
+        return false;
+      }
       this.scheduled.set('player', this.player);
       this.parameterDispatchers.forEach((storedValue, paramType) => {
         if (paramType != Parameter.StartTime) { // will cause infinite loop
@@ -288,18 +303,24 @@ export class ManagedAudioEvent implements IAudioEvent {
         }
       });
       connectAndScheduleToPlay.stop();
+      const isPlaying = new Event(time => {
+        this.emit('playing', time);
+        isPlaying.stop();
+      });
+      this.scheduled.set('playing', isPlaying);
+      isPlaying.start(this.startTimeSecs);
+      this.emit('scheduled');
     });
     const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
-    connectAndScheduleToPlay.start(preLoadTime < Tone.Transport.seconds ? 
-      Tone.Transport.seconds : preLoadTime
-    );
-    this.scheduled.set('connect', connectAndScheduleToPlay);
-    const isPlaying = new Event(time => {
-      this.emit('playing', time);
-      isPlaying.stop();
-    });
-    this.scheduled.set('playing', isPlaying);
-    isPlaying.start(this.startTimeSecs);
+    const now = Tone.Transport.seconds;
+    const toScheduleTime = calculateStartTime(preLoadTime, now);
+    if (toScheduleTime < this.startTimeSecs) {
+      connectAndScheduleToPlay.start(toScheduleTime);
+      this.scheduled.set('connect', connectAndScheduleToPlay);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   protected calculateDurationDependentEvents() {
@@ -328,8 +349,10 @@ export class ManagedAudioEvent implements IAudioEvent {
     if (this.scheduled) {
       this.reset();
     }
-    this.calculateStartTimeDependentEvents();
-    this.calculateDurationDependentEvents();
+    const wereScheduled = this.calculateStartTimeDependentEvents();
+    if (wereScheduled) {
+      this.calculateDurationDependentEvents();
+    }
   }
 
   private reset() {
@@ -389,11 +412,27 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
         );
         return player;
       }
+      if (this.hasScheduledEmptyPlayer) {
+        // if we got here, it means the connectToGraph stuff has already been
+        // put on the transport and actually executed
+        // - so we need to recalculate the creation event,
+        // which will refire the events
+        this.hasScheduledEmptyPlayer = false;
+        this.startTimeDependentKeys.forEach(key => {
+          const value = this.scheduled.get(key);
+          // the events have actually already run,
+          // but cleanup the transport anyway
+          if (value) {
+            value.dispose();
+            this.scheduled.delete(key);
+          }
+        });
+        this.calculateStartTimeDependentEvents();
+      }
     });
     const preLoadTime = time - this.loadBufferTimings.countIn;
-    toSchedule.start(preLoadTime < Tone.Transport.seconds ? 
-      Tone.Transport.seconds : preLoadTime
-    );
+    const now = Tone.Transport.seconds;
+    toSchedule.start(calculateStartTime(preLoadTime, now));
     this.scheduled.set('loaded', toSchedule);
   }
 }

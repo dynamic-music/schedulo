@@ -9,7 +9,7 @@ import {
 } from './index';
 import { ManagedAudioEvent } from './life-cycle';
 
-testLazyScheduling();
+testScheduleAtSameTime();
 
 async function testTransition() {
   let schedulo = new Schedulo();
@@ -195,6 +195,44 @@ async function testLazyScheduling() {
     }
   );
   schedulo.start();
+}
+
+async function testScheduleAtSameTime() {
+  const schedulo = new Schedulo();
+  schedulo.start();
+  const [first] = await schedulo.scheduleAudio(
+    ['./loops/1.wav'],
+    Time.At(5),
+    Playback.Oneshot(),
+    {
+      bufferScheme: 'dynamic',
+      timings: {
+        connectToGraph: {countIn: 2, countOut: 2},
+        loadBuffer: {countIn: 5, countOut: 5}
+      }
+    }
+  );
+  console.warn('scheduled', first);
+  first.on('scheduled', async () => {
+    console.warn('emitted', first);
+    const [second] = await schedulo.scheduleAudio(
+      ['./loops/short.wav'],
+      Time.At(5.0),
+      Playback.Oneshot(),
+      {
+        bufferScheme: 'dynamic',
+        timings: {
+          connectToGraph: {countIn: 2, countOut: 2},
+          loadBuffer: {countIn: 3, countOut: 3}
+        }
+      }
+    );
+    console.warn('scheduled', second);
+    second.on('scheduled', () => {
+      console.warn('emitted', second);
+    });
+    second.on('playing', () => { console.warn('playing'); });
+  });
 }
 
 /*
