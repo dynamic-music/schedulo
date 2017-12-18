@@ -223,7 +223,7 @@ async function testScheduleAtSameTime() {
         bufferScheme: 'dynamic',
         timings: {
           connectToGraph: {countIn: 2, countOut: 2},
-          loadBuffer: {countIn: 5, countOut: 5}
+          loadBuffer: {countIn: 3, countOut: 3}
         }
       }
     );
@@ -231,6 +231,7 @@ async function testScheduleAtSameTime() {
     second.on('scheduled', () => {
       console.warn('emitted', second);
     });
+    second.on('playing', () => { console.warn('playing'); });
   });
 }
 

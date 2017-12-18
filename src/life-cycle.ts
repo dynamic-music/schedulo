@@ -282,7 +282,7 @@ export class ManagedAudioEvent implements IAudioEvent {
     return this;
   }
 
-  protected calculateStartTimeDependentEvents() {
+  protected calculateStartTimeDependentEvents(): boolean {
     const startOffset = this.startTimeSecs - this.originalStartTimeSecs;
     const { connectToGraph } = this.timings;
     const connectAndScheduleToPlay = new Event(() => {
@@ -293,6 +293,8 @@ export class ManagedAudioEvent implements IAudioEvent {
       this.player = this.createPlayer(startOffset).connect(this.panner);
       if (!this.player.buffer.duration) {
         this.hasScheduledEmptyPlayer = true;
+        // bail out of doing any further scheduling if we aren't ready
+        return false;
       }
       this.scheduled.set('player', this.player);
       this.parameterDispatchers.forEach((storedValue, paramType) => {
@@ -301,18 +303,24 @@ export class ManagedAudioEvent implements IAudioEvent {
         }
       });
       connectAndScheduleToPlay.stop();
+      const isPlaying = new Event(time => {
+        this.emit('playing', time);
+        isPlaying.stop();
+      });
+      this.scheduled.set('playing', isPlaying);
+      isPlaying.start(this.startTimeSecs);
       this.emit('scheduled');
     });
     const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
     const now = Tone.Transport.seconds;
-    connectAndScheduleToPlay.start(calculateStartTime(preLoadTime, now));
-    this.scheduled.set('connect', connectAndScheduleToPlay);
-    const isPlaying = new Event(time => {
-      this.emit('playing', time);
-      isPlaying.stop();
-    });
-    this.scheduled.set('playing', isPlaying);
-    isPlaying.start(this.startTimeSecs);
+    const toScheduleTime = calculateStartTime(preLoadTime, now);
+    if (toScheduleTime < this.startTimeSecs) {
+      connectAndScheduleToPlay.start(toScheduleTime);
+      this.scheduled.set('connect', connectAndScheduleToPlay);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   protected calculateDurationDependentEvents() {
@@ -341,8 +349,10 @@ export class ManagedAudioEvent implements IAudioEvent {
     if (this.scheduled) {
       this.reset();
     }
-    this.calculateStartTimeDependentEvents();
-    this.calculateDurationDependentEvents();
+    const wereScheduled = this.calculateStartTimeDependentEvents();
+    if (wereScheduled) {
+      this.calculateDurationDependentEvents();
+    }
   }
 
   private reset() {
