@@ -86,8 +86,8 @@ interface ParameterStateHandling<T> {
   handler: (n: T) => void;
 }
 
-type SingleOrMultiValueDispatcher = 
-  StoredValueHandler<number> 
+type SingleOrMultiValueDispatcher =
+  StoredValueHandler<number>
   | StoredValueHandler<number[]>;
 
 class StoredValueHandler<T> {
@@ -291,6 +291,9 @@ export class ManagedAudioEvent implements IAudioEvent {
       this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
       this.panner.connect(this.reverbVolume).connect(this.delayVolume);
       this.player = this.createPlayer(startOffset).connect(this.panner);
+      this.player.fadeIn = 0.02
+      this.player.fadeOut = 0.02
+      console.log('connected', Tone.Transport.seconds)
       if (!this.player.buffer.duration) {
         this.hasScheduledEmptyPlayer = true;
         // bail out of doing any further scheduling if we aren't ready
@@ -309,11 +312,13 @@ export class ManagedAudioEvent implements IAudioEvent {
       });
       this.scheduled.set('playing', isPlaying);
       isPlaying.start(this.startTimeSecs);
+      console.log('scheduled', Tone.Transport.seconds)
       this.emit('scheduled');
     });
     const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
     const now = Tone.Transport.seconds;
     const toScheduleTime = calculateStartTime(preLoadTime, now);
+    console.log('event', this.startTimeSecs, this.originalStartTimeSecs, toScheduleTime)
     if (toScheduleTime < this.startTimeSecs) {
       connectAndScheduleToPlay.start(toScheduleTime);
       this.scheduled.set('connect', connectAndScheduleToPlay);
@@ -374,7 +379,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
       createPlayer: (n: number) => new Tone.Player({}) // needs to be replaced later
     });
     const {loadBuffer} = args.timings;
-    this.loadBufferTimings = loadBuffer; 
+    this.loadBufferTimings = loadBuffer;
     this.bufferResolver = bufferResolver;
     // we need to reset, super() already set up stuff on the timeline
     this.startTime = args.startTime;
@@ -395,7 +400,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
     const toSchedule = new Event(async () => {
       toSchedule.stop();
       const buffer = await this.bufferResolver.fetch();
-      this.duration = buffer.duration; // TODO looping 
+      this.duration = buffer.duration; // TODO looping
       const playerFactory = createPlayerFactoryWithBuffer({
         startTime: time,
         offset: this.offsetSecs,

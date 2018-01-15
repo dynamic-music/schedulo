@@ -98,6 +98,8 @@ export class Schedulo implements Scheduler {
       throw 'Unsupported buffering scheme.';
     }
 
+    console.log("time", startTime, time);
+
     const reverb = this.reverb;
     const delay = this.delay;
     const args = {

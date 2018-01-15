@@ -103,6 +103,8 @@ interface Player extends AudioNode {
   playbackRate: number;
   loopEnd: number;
   loopStart: number;
+  fadeIn: number;
+  fadeOut: number;
   unsync(): Player;
   sync(): Player;
   start(startTime: string | number, offset?: string | number, duration?: string | number): Player;
