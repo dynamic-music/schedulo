@@ -103,7 +103,7 @@ export interface ScheduledObject {
   //etc
 }
 
-export type AudioStatus = 'playing' | 'stopped' | 'scheduled';
+export type AudioStatus = 'playing' | 'stopped' | 'scheduled' | 'loaded' | 'disposed' | 'freed';
 export interface AudioObject extends
   ScheduledObject, IEmitter<AudioStatus, number | string> {
   set(param: Parameter, value: number): void,

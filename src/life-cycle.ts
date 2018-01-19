@@ -48,8 +48,9 @@ export interface IDisposable {
   dispose(): void;
 }
 
-export const defaultAudioTimings: LifeCycleTimings = {
-  connectToGraph: {countIn: 2, countOut: 2}
+export const defaultAudioTimings: DynamicBufferLifeCycle = {
+  connectToGraph: {countIn: 2, countOut: 2},
+  loadBuffer: {countIn: 5, countOut: 5}
 };
 
 export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;
@@ -81,16 +82,16 @@ extends ManagedEventTimes<DynamicBufferLifeCycle> {
   effects: Effects;
 }
 
-interface ParameterStateHandling<T> {
+export interface ParameterStateHandling<T> {
   currentValue: T;
   handler: (n: T) => void;
 }
 
-type SingleOrMultiValueDispatcher =
+export type SingleOrMultiValueDispatcher =
   StoredValueHandler<number>
   | StoredValueHandler<number[]>;
 
-class StoredValueHandler<T> {
+export class StoredValueHandler<T> {
   constructor(public stored: ParameterStateHandling<T>) {}
   update(): void {
     this.stored.handler(this.stored.currentValue);
@@ -319,13 +320,13 @@ export class ManagedAudioEvent implements IAudioEvent {
     const now = Tone.Transport.seconds;
     const toScheduleTime = calculateStartTime(preLoadTime, now);
     console.log('event', this.startTimeSecs, this.originalStartTimeSecs, toScheduleTime)
-    if (toScheduleTime < this.startTimeSecs) {
+    //if (toScheduleTime < this.startTimeSecs) {
       connectAndScheduleToPlay.start(toScheduleTime);
       this.scheduled.set('connect', connectAndScheduleToPlay);
       return true;
-    } else {
+    /*} else {
       return false;
-    }
+    }*/
   }
 
   protected calculateDurationDependentEvents() {
