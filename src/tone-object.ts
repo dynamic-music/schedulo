@@ -19,7 +19,8 @@ export class TonejsScheduledObject extends Tone.Emitter implements ScheduledObje
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
 
   private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher> = new Map();
-  private scheduled: Map<string, IDisposable> = new Map(); // TODO, could this just be an array?
+  private audioGraph: IDisposable[] = [];
+  private scheduledEvents: Map<string, IDisposable> = new Map();
   private startTimeDependentKeys = ['playing', 'scheduled', 'loaded'];
   private durationDependentKeys = ['stopped', 'dispose', 'freed'];
   private buffer: ToneBuffer | null;
@@ -86,42 +87,29 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.parameterDispatchers.set(
       Parameter.StartTime,
       new StoredValueHandler({
-        currentValue: new Tone.Time(this.startTime).toSeconds(),
+        currentValue: this.startTime,
         handler: (n: number) => {
           if (!this.isPlaying) {
             this.startTime = n;
+            this.reset();
+            this.updateStartEvents()
+              .then(() => this.updateEndEvents());
           }
         }
       })
     );
+    this.parameterDispatchers.set(
+      Parameter.Duration,
+      new StoredValueHandler({
+        currentValue: this.duration ? this.duration : 0,
+        handler: (n: number) => {
+          this.duration = n;
+          this.resetEvents(this.durationDependentKeys);
+          this.updateEndEvents();
+        }
+      })
+    );
   }
-
-  /*get duration(): number {
-    return this.duration;
-  }
-
-  set duration(d: number) {
-    this.duration = d;
-    this.scheduled.forEach((e, key) => {
-      if (this.durationDependentKeys.includes(key)) {
-        e.dispose();
-      }
-    });
-    this.updateEndEvents();
-  }
-
-  get startTime(): number {
-    return this.startTime;
-  }
-
-  set startTime(t: number) {
-    this.startTime = t;
-    if (this.scheduled) {
-      this.reset();
-    }
-    this.updateStartEvents()
-      .then(() => this.updateEndEvents());
-  }*/
 
   set(param: Parameter, value: number | number[]): void {
     const dispatch = this.parameterDispatchers.get(param);
@@ -140,13 +128,40 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   stop(time: ScheduleTime, mode: StoppingMode): void {
-    this.emit('stopped', Tone.Transport.seconds);
-    this.reset();
+    if (this.isPlaying && this.player && this.player.state === 'started') {
+      this.player.stop();
+      this.resetEvents();
+      this.scheduleStopAndCleanup(Tone.Transport.seconds);
+    }
   }
 
   private reset() {
-    this.scheduled.forEach(event => event.dispose());
-    this.scheduled = new Map();
+    this.resetEvents();
+    this.resetGraph();
+  }
+
+  private resetEvents(keys?: string[]) {
+    if (this.scheduledEvents.size > 0) {
+      if (keys) {
+        keys.forEach(k => {
+          const e = this.scheduledEvents.get(k);
+          if (e) {
+            e.dispose();
+            this.scheduledEvents.delete(k);
+          }
+        });
+      } else {
+        this.scheduledEvents.forEach(event => event.dispose());
+        this.scheduledEvents = new Map();
+      }
+    }
+  }
+
+  private resetGraph() {
+    if (this.audioGraph.length > 0) {
+      this.audioGraph.forEach(node => node.dispose());
+      this.audioGraph = [];
+    }
   }
 
   private async updateStartEvents(): Promise<any> {
@@ -178,13 +193,16 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       }
     }
     if (duration) {
-      const stopTime = this.startTime + duration;
-      const disposeTime = stopTime + this.timings.connectToGraph.countOut;
-      const freeTime = stopTime + this.timings.loadBuffer.countOut;
-      this.scheduleEvent('stopped', stopTime, () => this.isPlaying = false);
-      this.scheduleEvent('disposed', disposeTime, this.disconnectAndDispose.bind(this));
-      this.scheduleEvent('freed', freeTime, this.freeBuffer.bind(this));
+      this.scheduleStopAndCleanup(this.startTime + duration);
     }
+  }
+
+  private scheduleStopAndCleanup(stopTime: number) {
+    const disposeTime = stopTime + this.timings.connectToGraph.countOut;
+    const freeTime = stopTime + this.timings.loadBuffer.countOut;
+    this.scheduleEvent('stopped', stopTime, () => this.isPlaying = false);
+    this.scheduleEvent('disposed', disposeTime, this.resetGraph.bind(this));
+    this.scheduleEvent('freed', freeTime, this.freeBuffer.bind(this));
   }
 
   // Tone.js won't schedule an event if it isn't in the future,
@@ -214,15 +232,18 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.buffer) {
       this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
       this.delayVolume = new Tone.Volume(0).connect(this.delay);
+      this.audioGraph.push(this.reverbVolume);
+      this.audioGraph.push(this.delayVolume);
       this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
       this.panner.connect(this.reverbVolume).connect(this.delayVolume);
+      this.audioGraph.push(this.panner);
 
       this.player = new Tone.Player(this.buffer);
-      this.player.toMaster().sync().start(this.startTime, this.offset, this.duration);
+      this.player.sync().start(this.startTime, this.offset, this.duration);
       this.player.connect(this.panner);
       this.player.fadeIn = 0.02
       this.player.fadeOut = 0.02
-      this.scheduled.set('player', this.player);
+      this.audioGraph.push(this.player);
 
       this.parameterDispatchers.forEach((storedValue, paramType) => {
         if (paramType != Parameter.StartTime) { // will cause infinite loop
@@ -232,14 +253,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       return Promise.resolve();
     }
     return Promise.reject("failed to schedule, buffer not available yet")
-  }
-
-  private disconnectAndDispose() {
-    //TODO DISCONNECT EVERYTHING ELSE!!!
-    if (this.player) {
-      this.player.dispose();
-      this.scheduled.delete('player');
-    }
   }
 
   /** schedules an event with the given task, adds it to the scheduled map,
@@ -261,7 +274,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         this.emit(name, time);
         event.stop();
       });
-      this.scheduled.set(name, event);
+      this.scheduledEvents.set(name, event);
       event.start(time);
     })
   }

@@ -75,6 +75,7 @@ interface ToneBuffer {
 
 interface AudioNode {
   connect(unit: AudioNode): this;
+  dispose(): void;
   toMaster(): this;
 }
 
@@ -109,7 +110,7 @@ interface Player extends AudioNode {
   sync(): Player;
   start(startTime: string | number, offset?: string | number, duration?: string | number): Player;
   stop(offset?: string | number): Player;
-  dispose(): void;
+  state: string
 }
 
 interface Volume extends AudioNode {

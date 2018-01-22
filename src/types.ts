@@ -89,6 +89,7 @@ export module Stop {
 
 export enum Parameter {
   StartTime,
+  Duration,
   Amplitude,
   Panning,
   Reverb,

@@ -102,7 +102,7 @@ export class Schedulo implements Scheduler {
 
     const reverb = this.reverb;
     const delay = this.delay;
-    const args = {
+    /*const args = {
       fileUris,
       startTime,
       mode,
