@@ -7,7 +7,7 @@ import {
   Subdivision,
   Parameter
 } from './index';
-import { ManagedAudioEvent } from './life-cycle';
+//import { ManagedAudioEvent } from './life-cycle';
 
 testScheduleAtSameTime();
 

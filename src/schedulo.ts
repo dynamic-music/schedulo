@@ -13,11 +13,11 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add, createPlayerFactoryAfterLoadingBuffer } from './tone-helpers';
 import {
-  setupTonePlayers,
+  //setupTonePlayers,
   defaultAudioTimings,
   LifeCycleTimings,
-  ManagedAudioEvent,
-  lazilySetupTonePlayers,
+  //ManagedAudioEvent,
+  //lazilySetupTonePlayers,
   DynamicBufferLifeCycle
 } from './life-cycle';
 import { AudioBank } from './audio-bank';
@@ -61,8 +61,10 @@ export class Schedulo implements Scheduler {
 
   constructor() {
     this.audioBank = new AudioBank();
-    this.reverb = new Tone.Freeverb().toMaster();
-    this.delay = new Tone.FeedbackDelay().toMaster();
+    //this.reverb = new Tone.Freeverb().toMaster();
+    //this.delay = new Tone.FeedbackDelay().toMaster();
+    this.reverb = new Tone.Volume(0);
+    this.delay = new Tone.Volume(0);
   }
 
   setLoop(start: number, stop: number): void {

@@ -98,9 +98,9 @@ export enum Parameter {
   PlaybackRate
 }
 export interface ScheduledObject {
-  startTime: string | number;
-  offset?: string | number;
-  duration?: string | number;
+  startTime: number;
+  offset?: number;
+  duration?: number;
   //etc
 }
 

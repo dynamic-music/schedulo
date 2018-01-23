@@ -104,10 +104,10 @@ function calculateStartTime(ideal: number, now: number, delta: number = 0.1) {
   return ideal <= now ? now + delta : ideal;
 }
 
-export class ManagedAudioEvent implements IAudioEvent {
+/*export class ManagedAudioEvent implements IAudioEvent {
   /** Event stuff
    * duration?: string | number | undefined;
-  * */
+  * *
   protected startTimeSecs: number;
   protected durationSecs: number;
   protected offsetSecs: number;
@@ -326,7 +326,7 @@ export class ManagedAudioEvent implements IAudioEvent {
       return true;
     /*} else {
       return false;
-    }*/
+    }*
   }
 
   protected calculateDurationDependentEvents() {
@@ -441,7 +441,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
     toSchedule.start(calculateStartTime(preLoadTime, now));
     this.scheduled.set('loaded', toSchedule);
   }
-}
+}*
 
 interface ScheduleToLoadArgs {
   startTime: number;
@@ -601,4 +601,4 @@ export async function setupTonePlayers({
       timings
     });
   });
-}
+}*/
