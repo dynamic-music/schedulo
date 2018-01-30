@@ -8,7 +8,8 @@ import * as Tone from 'tone';
 import { Time, Player, Event as ToneEvent } from 'tone';
 import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
-  PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
+  ScheduleRelativeTo, PlaybackMode, LoopMode,
+  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add, createPlayerFactoryAfterLoadingBuffer } from './tone-helpers';
@@ -184,7 +185,9 @@ export class Schedulo implements Scheduler {
       // the next event. Either way, we can't know any time upfront...
       // so this needs rethinking
       return new Tone.Time(calculateEndTime(time.objects)).toSeconds();
-    } else if (time instanceof ScheduleAt) {
+    } else if (time instanceof ScheduleRelativeTo) {
+      return new Tone.Time(add(time.object.startTime, time.delta)).toSeconds();
+    }else if (time instanceof ScheduleAt) {
       return new Tone.Time(time.at).toSeconds();
     } else if (time instanceof ScheduleNext) {
       let subdiv = time.next === Subdivision.Bar ? "1m" : "1n";
@@ -197,6 +200,7 @@ export class Schedulo implements Scheduler {
   }
 }
 
+//TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
 function calculateEndTime(objects: ScheduledObject[]): string | number {
   let endTimes = objects.map(({startTime, duration = 0}) => add(startTime, duration));
   return Math.max(...endTimes);

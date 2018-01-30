@@ -16,6 +16,10 @@ export class ScheduleIn extends ScheduleTime {
 export class ScheduleAfter extends ScheduleTime {
   constructor(public objects: ScheduledObject[]) { super(); }
 }
+export class ScheduleRelativeTo extends ScheduleTime {
+  constructor(public object: ScheduledObject,
+    public delta: string | number) { super(); }
+}
 export module Time {
   export const Immediately = new ScheduleImmediately();
   export function At(time: string | number): ScheduleAt {
@@ -29,6 +33,10 @@ export module Time {
   }
   export function After(objects: ScheduledObject[]): ScheduleAfter {
     return new ScheduleAfter(objects);
+  }
+  export function RelativeTo(object: ScheduledObject,
+      delta: string | number): ScheduleRelativeTo {
+    return new ScheduleRelativeTo(object, delta);
   }
 }
 
