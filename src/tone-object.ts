@@ -50,7 +50,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.Amplitude,
       new StoredValueHandler({
         currentValue: 1.0,
-        handler: (n: number) => this.player.volume.value = Tone.gainToDb(n)
+        handler: (n: number) => {
+          if (this.player.volume) {
+            this.player.volume.value = Tone.gainToDb(n)
+          }
+        }
       })
     );
     this.parameterDispatchers.set(
@@ -114,7 +118,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (dispatch) {
       dispatch.stored.currentValue = value;
       if (this.player) {
-        dispatch.update();
+        try {
+          dispatch.update();
+        } catch (err) {
+          console.warn(err);
+        }
       }
     }
   }
@@ -126,11 +134,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   stop(time: ScheduleTime, mode: StoppingMode): void {
-    if (this.isPlaying && this.player && this.player.state === 'started') {
-      this.player.stop();
-      this.resetEvents();
-      this.scheduleStopAndCleanup(Tone.Transport.seconds);
+    if (this.player && this.player.state === 'started') {
+      this.player.unsync().stop();
     }
+    this.resetEvents();
+    this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
   private reset() {
@@ -164,10 +172,12 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     const loadTime = this.toFutureTime(
       this.startTime - this.timings.loadBuffer.countIn);
     await this.scheduleEvent('loaded', loadTime, this.initBuffer.bind(this));
-    const scheduleTime = this.toFutureTime(
-      this.startTime - this.timings.connectToGraph.countIn);
-    this.scheduleEvent('scheduled', scheduleTime, this.initAndSchedulePlayer.bind(this));
-    this.scheduleEvent('playing', this.startTime, this.enterPlayState.bind(this));
+    if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
+      const scheduleTime = this.toFutureTime(
+        this.startTime - this.timings.connectToGraph.countIn);
+      this.scheduleEvent('scheduled', scheduleTime, this.initAndSchedulePlayer.bind(this));
+      this.scheduleEvent('playing', this.startTime, this.enterPlayState.bind(this));
+    }
   }
 
   // Tone.js won't schedule an event if it isn't in the future,
@@ -254,25 +264,22 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private resetGraph() {
-    if (!this.audioGraph || this.audioGraph.length == 0) {
-      throw "nothing to clean up";
+    if (this.audioGraph.length > 0) {
+      this.audioGraph.forEach(node => node.dispose());
+      this.audioGraph = [];
     }
-    this.audioGraph.forEach(node => node.dispose());
-    this.audioGraph = [];
   }
 
   private enterPlayState() {
-    if (!this.player) {
-      throw "can't play without a player";
+    if (this.player) {
+      this.isPlaying = true;
     }
-    this.isPlaying = true;
   }
 
   private exitPlayState() {
-    if (!this.isPlaying) {
-      throw "can't stop when not playing";
+    if (this.isPlaying) {
+      this.isPlaying = false;
     }
-    this.isPlaying = false;
   }
 
   /** schedules an event with the given task, adds it to the scheduled map,
@@ -285,7 +292,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         if (task) {
           try {
             await task(time);
-            console.log(name, time);
+            //console.log(name, time);
             this.emit(name, time);
           } catch (err) {
             console.warn(err, this.fileUri);
