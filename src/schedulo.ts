@@ -60,8 +60,9 @@ export class Schedulo implements Scheduler {
   private reverb: AudioNode;
   private delay: AudioNode;
 
-  constructor() {
-    this.audioBank = new AudioBank();
+  constructor(private timings = defaultAudioTimings) {
+    const bufferWindow = timings.loadBuffer.countIn+timings.loadBuffer.countOut;
+    this.audioBank = new AudioBank(bufferWindow);
     //this.reverb = new Tone.Freeverb().toMaster();
     //this.delay = new Tone.FeedbackDelay().toMaster();
     this.reverb = new Tone.Volume(0);
@@ -93,15 +94,9 @@ export class Schedulo implements Scheduler {
   async scheduleAudio(
     fileUris: string[],
     startTime: ScheduleTime,
-    mode: PlaybackMode,
-    options: AdditionalOptions = defaultOptions
+    mode: PlaybackMode
   ): Promise<AudioObject[]> {
-    const { bufferScheme, timings } = options;
     let time = this.calculateScheduleTime(startTime);
-
-    if (!['preload', 'dynamic'].includes(bufferScheme)) {
-      throw 'Unsupported buffering scheme.';
-    }
 
     const reverb = this.reverb;
     const delay = this.delay;
@@ -134,7 +129,7 @@ export class Schedulo implements Scheduler {
 
     const objects = await createPlayers();*/
     const objects = fileUris.map(f =>
-      new TonejsAudioObject(f, this.audioBank, options.timings, reverb, delay,
+      new TonejsAudioObject(f, this.audioBank, this.timings, reverb, delay,
         time, this.toSecs(mode.offset), this.toSecs(mode.duration)));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;

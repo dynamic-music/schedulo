@@ -41,6 +41,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     duration?: number,
   ) {
     super(startTime, offset, duration);
+
     this.initParamDispatchers();
     this.updateAllEvents();
   }
@@ -299,7 +300,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           }
           resolve();
         }
-        event.stop();
+        //event.stop(); produces lots of errors
       });
       this.scheduledEvents.set(name, event);
       event.start(time);

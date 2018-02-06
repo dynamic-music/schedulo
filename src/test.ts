@@ -173,26 +173,12 @@ async function testLazyScheduling() {
   const one = await schedulo.scheduleAudio(
     ['./loops/1.wav'],
     Time.At(6.0),
-    Playback.Oneshot(),
-    {
-      bufferScheme: 'dynamic',
-      timings: {
-        connectToGraph: {countIn: 2, countOut: 2},
-        loadBuffer: {countIn: 5, countOut: 5}
-      }
-    }
+    Playback.Oneshot()
   );
   const two = await schedulo.scheduleAudio(
     ['./loops/short.wav'],
     Time.At(10.0),
-    Playback.Oneshot(),
-    {
-      bufferScheme: 'dynamic',
-      timings: {
-        connectToGraph: {countIn: 2, countOut: 2},
-        loadBuffer: {countIn: 5, countOut: 5}
-      }
-    }
+    Playback.Oneshot()
   );
   schedulo.start();
 }
@@ -203,14 +189,7 @@ async function testScheduleAtSameTime() {
   const [first] = await schedulo.scheduleAudio(
     ['./loops/1.wav'],
     Time.At(5),
-    Playback.Oneshot(),
-    {
-      bufferScheme: 'dynamic',
-      timings: {
-        connectToGraph: {countIn: 2, countOut: 2},
-        loadBuffer: {countIn: 5, countOut: 5}
-      }
-    }
+    Playback.Oneshot()
   );
   console.warn('scheduled', first);
   first.on('scheduled', async () => {
@@ -218,14 +197,7 @@ async function testScheduleAtSameTime() {
     const [second] = await schedulo.scheduleAudio(
       ['./loops/short.wav'],
       Time.At(5.0),
-      Playback.Oneshot(),
-      {
-        bufferScheme: 'dynamic',
-        timings: {
-          connectToGraph: {countIn: 2, countOut: 2},
-          loadBuffer: {countIn: 3, countOut: 3}
-        }
-      }
+      Playback.Oneshot()
     );
     console.warn('scheduled', second);
     second.on('scheduled', () => {
