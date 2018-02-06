@@ -135,8 +135,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   stop(time: ScheduleTime, mode: StoppingMode): void {
-    if (this.player && this.player.state === 'started') {
-      this.player.unsync().stop();
+    if (this.player) {
+      //these calls often produce errors due to inconsistencies in tone
+      try { this.player.unsync(); } catch (e) {};
+      try { this.player.stop(); } catch (e) {};
     }
     this.resetEvents();
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
