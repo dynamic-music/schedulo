@@ -69,6 +69,10 @@ export class Schedulo implements Scheduler {
     this.delay = new Tone.Volume(0);
   }
 
+  getAudioBank(): AudioBank {
+    return this.audioBank;
+  }
+
   setLoop(start: number, stop: number): void {
     Tone.Transport.loop = true;
     Tone.Transport.loopStart = start;

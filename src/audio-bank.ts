@@ -20,6 +20,10 @@ export class AudioBank {
       });
   }
 
+  async getAudioBuffer(filePath: string): Promise<AudioBuffer> {
+    return (await this.getToneBuffer(filePath)).get();
+  }
+
   freeBuffer(filePath: string) {
     const lastRequested = this.lastRequested.get(filePath);
     if (lastRequested && this.minUnusedTime*1000 < Date.now() - lastRequested) {
