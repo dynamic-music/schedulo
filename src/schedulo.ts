@@ -104,37 +104,9 @@ export class Schedulo implements Scheduler {
 
     const reverb = this.reverb;
     const delay = this.delay;
-    /*const args = {
-      fileUris,
-      startTime,
-      mode,
-      time, // TODO, function args for setupTonePlayers are not ideal
-      effects: {
-        reverb,
-        delay,
-      }
-    };
 
-    /*const createPlayers = () => {
-      // annoyingly TypeScript can't deduce options.timings without
-      // explictily writing out something like this...
-      if (options.bufferScheme === 'dynamic') {
-        return lazilySetupTonePlayers({
-          ...args,
-          timings: options.timings
-        });
-      } else {
-        return setupTonePlayers({
-          ...args,
-          timings
-        });
-      }
-    };
-
-    const objects = await createPlayers();*/
     const objects = fileUris.map(f =>
-      new TonejsAudioObject(f, this.audioBank, this.timings, reverb, delay,
-        time, this.toSecs(mode.offset), this.toSecs(mode.duration)));
+      new TonejsAudioObject(f, this.audioBank, this.timings, reverb, delay, time));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -163,7 +135,7 @@ export class Schedulo implements Scheduler {
 
   scheduleEvent(trigger: () => any, time: ScheduleTime): EventObject {
     let startTime = this.calculateScheduleTime(time);
-    return new TonejsEventObject(new Tone.Event(trigger).start(startTime), startTime);
+    return new TonejsEventObject(new Tone.Event(trigger).start(startTime));
   }
 
   stopAudio(objects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void {
@@ -185,7 +157,7 @@ export class Schedulo implements Scheduler {
       // so this needs rethinking
       return new Tone.Time(calculateEndTime(time.objects)).toSeconds();
     } else if (time instanceof ScheduleRelativeTo) {
-      return new Tone.Time(add(time.object.startTime, time.delta)).toSeconds();
+      return new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
     }else if (time instanceof ScheduleAt) {
       return new Tone.Time(time.at).toSeconds();
     } else if (time instanceof ScheduleNext) {
@@ -201,6 +173,6 @@ export class Schedulo implements Scheduler {
 
 //TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
 function calculateEndTime(objects: ScheduledObject[]): string | number {
-  let endTimes = objects.map(({startTime, duration = 0}) => add(startTime, duration));
+  let endTimes = objects.map(o => add(o.getStartTime(), o.getDuration()));
   return Math.max(...endTimes);
 }

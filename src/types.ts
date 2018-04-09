@@ -96,8 +96,10 @@ export module Stop {
 //scheduled object
 
 export enum Parameter {
+  Offset,
   StartTime,
   Duration,
+  DurationRatio,
   Amplitude,
   Panning,
   Reverb,
@@ -106,10 +108,8 @@ export enum Parameter {
   PlaybackRate
 }
 export interface ScheduledObject {
-  startTime: number;
-  offset?: number;
-  duration?: number;
-  //etc
+  getStartTime(): number,
+  getDuration(): number
 }
 
 export type AudioStatus = 'playing' | 'stopped' | 'scheduled' | 'loaded' | 'disposed' | 'freed';

@@ -6,14 +6,9 @@ import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable } from './life-cycle';
 
-export class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
-  constructor(
-    public startTime: number,
-    public offset?: number,
-    public duration?: number,
-  ) {
-    super();
-  }
+export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
+  abstract getStartTime(): number;
+  abstract getDuration(): number;
 }
 
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
@@ -29,6 +24,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private reverbVolume: Volume;
   private delayVolume: Volume;
   private isPlaying = false;
+  private offset = 0;
+  private duration: number; // undefined means entire buffer is played
+  private durationRatio = 1;
 
   constructor(
     private fileUri: string,
@@ -36,12 +34,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     private timings: DynamicBufferLifeCycle,
     private reverb: AudioNode,
     private delay: AudioNode,
-    startTime: number,
-    offset?: number,
-    duration?: number,
+    private startTime: number
   ) {
-    super(startTime, offset, duration);
-
+    super();
     this.initParamDispatchers();
     this.updateAllEvents();
   }
@@ -85,30 +80,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.PlaybackRate,
       new StoredValueHandler({
         currentValue: 1.0,
-        handler: (n: number) => this.player.playbackRate = n
-      })
-    );
-    this.parameterDispatchers.set(
-      Parameter.StartTime,
-      new StoredValueHandler({
-        currentValue: this.startTime,
         handler: (n: number) => {
-          if (!this.isPlaying) {
-            this.startTime = n;
-            this.reset();
-            this.updateAllEvents();
-          }
-        }
-      })
-    );
-    this.parameterDispatchers.set(
-      Parameter.Duration,
-      new StoredValueHandler({
-        currentValue: this.duration ? this.duration : 0,
-        handler: (n: number) => {
-          this.duration = n;
-          this.resetEvents(this.durationDependentKeys);
-          this.updateEndEvents();
+          this.player.playbackRate = n;
         }
       })
     );
@@ -125,6 +98,18 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           console.warn(err);
         }
       }
+    } else if (param === Parameter.StartTime) {
+      this.startTime = <number>value;
+      this.reset();
+      this.updateAllEvents();
+    } else if (param === Parameter.Duration) {
+      this.duration = <number>value;
+      this.updateEndEvents();
+    } else if (param === Parameter.DurationRatio) {
+      this.durationRatio = <number>value;
+      this.updateEndEvents();
+    } else if (param === Parameter.Offset) {
+      this.offset = <number>value;
     }
   }
 
@@ -142,6 +127,19 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
     this.resetEvents();
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
+  }
+
+  getStartTime() {
+    return this.startTime;
+  }
+
+  getDuration() {
+    if (this.duration) {
+      return this.duration*this.durationRatio;
+    } else if (this.buffer) {
+      return this.buffer.duration - this.offset;
+    }
+    return 0;
   }
 
   private reset() {
@@ -172,8 +170,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private async updateStartEvents() {
+    //TODO STANDARD VALUES MAY CONFUSE THIS!! (EVEN THOUGH STARTTIME SHOULD BE FINE...)
     const loadTime = this.toFutureTime(
       this.startTime - this.timings.loadBuffer.countIn);
+    //console.log(this.startTime, this.offset, this.duration, loadTime)
     await this.scheduleEvent('loaded', loadTime, this.initBuffer.bind(this));
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
       const scheduleTime = this.toFutureTime(
@@ -191,21 +191,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private updateEndEvents() {
-    let duration = this.calculateDuration();
+    this.resetEvents(this.durationDependentKeys);
+    let duration = this.getDuration();
     if (duration) {
       this.scheduleStopAndCleanup(this.startTime + duration);
-    }
-  }
-
-  private calculateDuration() {
-    if (this.duration) {
-      return this.duration;
-    } else if (this.buffer) {
-      let duration = this.buffer.duration;
-      if (this.offset) {
-        duration -= this.offset;
-      }
-      return duration;
     }
   }
 
@@ -223,13 +212,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private async initBuffer() {
     this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
-    if (!this.duration) {
-      let duration = this.buffer.duration;
-      if (this.offset) {
-        duration -= this.offset;
-      }
-      this.duration = duration;
-    }
   }
 
   private async freeBuffer() {
@@ -253,15 +235,17 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.audioGraph.push(this.panner);
 
     this.player = new Tone.Player(this.buffer);
-    this.player.sync().start(this.startTime, this.offset, this.duration);
+
+    console.log(this.startTime, this.offset, this.duration)
+    this.player.sync().start(this.startTime, this.offset);//, this.duration);//no duration given, makes it dynamic
     this.player.connect(this.panner);
-    this.player.fadeIn = 0.02
-    this.player.fadeOut = 0.02
+    this.player.fadeIn = 0.02;
+    this.player.fadeOut = 0.02;
     this.audioGraph.push(this.player);
 
-    this.parameterDispatchers.forEach((storedValue, paramType) => {
+    this.parameterDispatchers.forEach((dispatcher, paramType) => {
       if (paramType != Parameter.StartTime) { // will cause infinite loop
-        storedValue.update();
+        dispatcher.update();
       }
     });
   }
@@ -312,7 +296,15 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 }
 
 export class TonejsEventObject extends TonejsScheduledObject implements EventObject {
-  constructor(public tonejsEvent: any, public startTime: number) {
-    super(tonejsEvent, startTime);
+  constructor(private tonejsEvent: any) {
+    super();
+  }
+
+  getStartTime() {
+    return this.tonejsEvent
+  }
+
+  getDuration() {
+    return 0;
   }
 }
