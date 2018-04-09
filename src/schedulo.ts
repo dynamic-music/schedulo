@@ -8,18 +8,20 @@ import * as Tone from 'tone';
 import { Time, Player, Event as ToneEvent } from 'tone';
 import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
-  PlaybackMode, LoopMode,  TransitionMode, TransitionWithCrossfade,
+  ScheduleRelativeTo, PlaybackMode, LoopMode,
+  TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add, createPlayerFactoryAfterLoadingBuffer } from './tone-helpers';
 import {
-  setupTonePlayers,
+  //setupTonePlayers,
   defaultAudioTimings,
   LifeCycleTimings,
-  ManagedAudioEvent,
-  lazilySetupTonePlayers,
+  //ManagedAudioEvent,
+  //lazilySetupTonePlayers,
   DynamicBufferLifeCycle
 } from './life-cycle';
+import { AudioBank } from './audio-bank';
 
 export type BufferLoadingScheme = 'preload' | 'dynamic';
 export interface LoadingConfig<
@@ -39,11 +41,11 @@ export interface DynamicConfig extends LoadingConfig<
   DynamicBufferLifeCycle
 > {};
 
-export type AdditionalOptions = PreloadConfig | DynamicConfig;
+export type AdditionalOptions = DynamicConfig;
 
 export const defaultOptions: AdditionalOptions = {
   timings: defaultAudioTimings,
-  bufferScheme: 'preload'
+  bufferScheme: 'dynamic'
 };
 
 export interface Effects {
@@ -54,13 +56,21 @@ export interface Effects {
 export class Schedulo implements Scheduler {
 
   private scheduledObjects: EventObject[] = [];
-  private filenameCache = new Map<String, AudioBuffer>();
+  private audioBank: AudioBank;
   private reverb: AudioNode;
   private delay: AudioNode;
 
-  constructor() {
-    this.reverb = new Tone.Freeverb().toMaster();
-    this.delay = new Tone.FeedbackDelay().toMaster();
+  constructor(private timings = defaultAudioTimings) {
+    const bufferWindow = timings.loadBuffer.countIn+timings.loadBuffer.countOut;
+    this.audioBank = new AudioBank(bufferWindow);
+    //this.reverb = new Tone.Freeverb().toMaster();
+    //this.delay = new Tone.FeedbackDelay().toMaster();
+    this.reverb = new Tone.Volume(0);
+    this.delay = new Tone.Volume(0);
+  }
+
+  getAudioBank(): AudioBank {
+    return this.audioBank;
   }
 
   setLoop(start: number, stop: number): void {
@@ -88,49 +98,23 @@ export class Schedulo implements Scheduler {
   async scheduleAudio(
     fileUris: string[],
     startTime: ScheduleTime,
-    mode: PlaybackMode,
-    options: AdditionalOptions = defaultOptions
+    mode: PlaybackMode
   ): Promise<AudioObject[]> {
-    const { bufferScheme, timings } = options;
     let time = this.calculateScheduleTime(startTime);
-
-    if (!['preload', 'dynamic'].includes(bufferScheme)) {
-      throw 'Unsupported buffering scheme.';
-    }
 
     const reverb = this.reverb;
     const delay = this.delay;
-    const args = {
-      fileUris,
-      startTime,
-      mode,
-      time, // TODO, function args for setupTonePlayers are not ideal
-      effects: {
-        reverb,
-        delay,
-      },
-      filenameCache: this.filenameCache,
-    };
 
-    const createPlayers = () => {
-      // annoyingly TypeScript can't deduce options.timings without
-      // explictily writing out something like this...
-      if (options.bufferScheme === 'dynamic') {
-        return lazilySetupTonePlayers({
-          ...args,
-          timings: options.timings
-        });
-      } else {
-        return setupTonePlayers({
-          ...args,
-          timings
-        });
-      }
-    };
-
-    const objects = await createPlayers();
+    const objects = fileUris.map(f =>
+      new TonejsAudioObject(f, this.audioBank, this.timings, reverb, delay, time));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
+  }
+
+  private toSecs(time: string | number | undefined) {
+    if (time !== undefined) {
+      return new Tone.Time(time).toSeconds();
+    }
   }
 
   transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<AudioObject[]> {
@@ -151,7 +135,7 @@ export class Schedulo implements Scheduler {
 
   scheduleEvent(trigger: () => any, time: ScheduleTime): EventObject {
     let startTime = this.calculateScheduleTime(time);
-    return new TonejsEventObject(new Tone.Event(trigger).start(startTime), startTime);
+    return new TonejsEventObject(new Tone.Event(trigger).start(startTime));
   }
 
   stopAudio(objects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void {
@@ -160,7 +144,7 @@ export class Schedulo implements Scheduler {
     objects.forEach(o => o.ramp(Parameter.Amplitude, -Infinity, duration, stopTime));
   }
 
-  private calculateScheduleTime(time: ScheduleTime): string | number {
+  private calculateScheduleTime(time: ScheduleTime): number {
     if (time instanceof ScheduleAfter) {
       // TODO this isn't going to work for objects with an indeterminate duration.
       // This is only really complicated by the fact that we want to be able to
@@ -171,9 +155,11 @@ export class Schedulo implements Scheduler {
       // stop time prior to it occuring, there is going to be a delay in scheduling
       // the next event. Either way, we can't know any time upfront...
       // so this needs rethinking
-      return calculateEndTime(time.objects);
-    } else if (time instanceof ScheduleAt) {
-      return time.at;
+      return new Tone.Time(calculateEndTime(time.objects)).toSeconds();
+    } else if (time instanceof ScheduleRelativeTo) {
+      return new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
+    }else if (time instanceof ScheduleAt) {
+      return new Tone.Time(time.at).toSeconds();
     } else if (time instanceof ScheduleNext) {
       let subdiv = time.next === Subdivision.Bar ? "1m" : "1n";
       return Tone.Transport.nextSubdivision(subdiv);
@@ -185,7 +171,8 @@ export class Schedulo implements Scheduler {
   }
 }
 
+//TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
 function calculateEndTime(objects: ScheduledObject[]): string | number {
-  let endTimes = objects.map(({startTime, duration = 0}) => add(startTime, duration));
+  let endTimes = objects.map(o => add(o.getStartTime(), o.getDuration()));
   return Math.max(...endTimes);
 }

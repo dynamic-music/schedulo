@@ -1,2 +1,3 @@
 export { Schedulo } from './schedulo';
-export { Playback, Time, Stop, Transition, Subdivision, AudioObject, Parameter } from './types';
+export { AudioBank } from './audio-bank';
+export { Scheduler, Playback, Time, Stop, Transition, Subdivision, AudioObject, Parameter } from './types';

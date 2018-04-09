@@ -48,8 +48,9 @@ export interface IDisposable {
   dispose(): void;
 }
 
-export const defaultAudioTimings: LifeCycleTimings = {
-  connectToGraph: {countIn: 2, countOut: 2}
+export const defaultAudioTimings: DynamicBufferLifeCycle = {
+  connectToGraph: {countIn: 2, countOut: 2},
+  loadBuffer: {countIn: 5, countOut: 5}
 };
 
 export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;
@@ -81,16 +82,16 @@ extends ManagedEventTimes<DynamicBufferLifeCycle> {
   effects: Effects;
 }
 
-interface ParameterStateHandling<T> {
+export interface ParameterStateHandling<T> {
   currentValue: T;
   handler: (n: T) => void;
 }
 
-type SingleOrMultiValueDispatcher = 
-  StoredValueHandler<number> 
+export type SingleOrMultiValueDispatcher =
+  StoredValueHandler<number>
   | StoredValueHandler<number[]>;
 
-class StoredValueHandler<T> {
+export class StoredValueHandler<T> {
   constructor(public stored: ParameterStateHandling<T>) {}
   update(): void {
     this.stored.handler(this.stored.currentValue);
@@ -103,10 +104,10 @@ function calculateStartTime(ideal: number, now: number, delta: number = 0.1) {
   return ideal <= now ? now + delta : ideal;
 }
 
-export class ManagedAudioEvent implements IAudioEvent {
+/*export class ManagedAudioEvent implements IAudioEvent {
   /** Event stuff
    * duration?: string | number | undefined;
-  * */
+  * *
   protected startTimeSecs: number;
   protected durationSecs: number;
   protected offsetSecs: number;
@@ -291,6 +292,9 @@ export class ManagedAudioEvent implements IAudioEvent {
       this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
       this.panner.connect(this.reverbVolume).connect(this.delayVolume);
       this.player = this.createPlayer(startOffset).connect(this.panner);
+      this.player.fadeIn = 0.02
+      this.player.fadeOut = 0.02
+      console.log('connected', Tone.Transport.seconds)
       if (!this.player.buffer.duration) {
         this.hasScheduledEmptyPlayer = true;
         // bail out of doing any further scheduling if we aren't ready
@@ -309,18 +313,20 @@ export class ManagedAudioEvent implements IAudioEvent {
       });
       this.scheduled.set('playing', isPlaying);
       isPlaying.start(this.startTimeSecs);
+      console.log('scheduled', Tone.Transport.seconds)
       this.emit('scheduled');
     });
     const preLoadTime = this.startTimeSecs - connectToGraph.countIn;
     const now = Tone.Transport.seconds;
     const toScheduleTime = calculateStartTime(preLoadTime, now);
-    if (toScheduleTime < this.startTimeSecs) {
+    console.log('event', this.startTimeSecs, this.originalStartTimeSecs, toScheduleTime)
+    //if (toScheduleTime < this.startTimeSecs) {
       connectAndScheduleToPlay.start(toScheduleTime);
       this.scheduled.set('connect', connectAndScheduleToPlay);
       return true;
-    } else {
+    /*} else {
       return false;
-    }
+    }*
   }
 
   protected calculateDurationDependentEvents() {
@@ -374,7 +380,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
       createPlayer: (n: number) => new Tone.Player({}) // needs to be replaced later
     });
     const {loadBuffer} = args.timings;
-    this.loadBufferTimings = loadBuffer; 
+    this.loadBufferTimings = loadBuffer;
     this.bufferResolver = bufferResolver;
     // we need to reset, super() already set up stuff on the timeline
     this.startTime = args.startTime;
@@ -395,7 +401,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
     const toSchedule = new Event(async () => {
       toSchedule.stop();
       const buffer = await this.bufferResolver.fetch();
-      this.duration = buffer.duration; // TODO looping 
+      this.duration = buffer.duration; // TODO looping
       const playerFactory = createPlayerFactoryWithBuffer({
         startTime: time,
         offset: this.offsetSecs,
@@ -435,7 +441,7 @@ export class DynamicBufferingManagedAudioEvent extends ManagedAudioEvent {
     toSchedule.start(calculateStartTime(preLoadTime, now));
     this.scheduled.set('loaded', toSchedule);
   }
-}
+}*
 
 interface ScheduleToLoadArgs {
   startTime: number;
@@ -595,4 +601,4 @@ export async function setupTonePlayers({
       timings
     });
   });
-}
+}*/
