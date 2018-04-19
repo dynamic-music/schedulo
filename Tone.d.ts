@@ -65,7 +65,8 @@ interface ToneTransport {
 
 interface Signal {
   value: number,
-  linearRampTo(value: number, duration: string | number, stopTime: string | number): void
+  linearRampTo(value: number, duration: string | number, startTime?: string | number): void
+  rampTo(value: number, duration: string | number, startTime?: string | number): void
 }
 
 interface ToneBuffer {

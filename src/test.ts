@@ -9,7 +9,17 @@ import {
 } from './index';
 //import { ManagedAudioEvent } from './life-cycle';
 
-testScheduleAtSameTime();
+//testScheduleAtSameTime();
+newTest()
+
+async function newTest() {
+  let schedulo = new Schedulo();
+  schedulo.start();
+  let objects = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(1), Playback.Oneshot());
+  objects[0].set(Parameter.Duration, 1)
+  objects[0].set(Parameter.Delay, 1)
+  //schedulo.transition(id, ["./loops/long2.m4a"], Time.At(4), Transition.CrossFade(8), Playback.Oneshot());
+}
 
 async function testTransition() {
   let schedulo = new Schedulo();

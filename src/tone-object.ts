@@ -6,6 +6,8 @@ import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable } from './life-cycle';
 
+const FADE_TIME = 0.1;
+
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
   abstract getStartTime(): number;
   abstract getDuration(): number;
@@ -120,11 +122,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   stop(time: ScheduleTime, mode: StoppingMode): void {
-    if (this.player) {
-      //these calls often produce errors due to inconsistencies in tone
-      try { this.player.unsync(); } catch (e) {};
-      try { this.player.stop(); } catch (e) {};
-    }
+    this.stopPlayer();
     this.resetEvents();
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
@@ -170,16 +168,16 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private async updateStartEvents() {
-    //TODO STANDARD VALUES MAY CONFUSE THIS!! (EVEN THOUGH STARTTIME SHOULD BE FINE...)
+    const startTime = this.startTime// - (FADE_TIME/2);
     const loadTime = this.toFutureTime(
-      this.startTime - this.timings.loadBuffer.countIn);
-    //console.log(this.startTime, this.offset, this.duration, loadTime)
+      startTime - this.timings.loadBuffer.countIn);
     await this.scheduleEvent('loaded', loadTime, this.initBuffer.bind(this));
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
+      //console.log("START", startTime)
       const scheduleTime = this.toFutureTime(
-        this.startTime - this.timings.connectToGraph.countIn);
+        startTime - this.timings.connectToGraph.countIn);
       this.scheduleEvent('scheduled', scheduleTime, this.initAndSchedulePlayer.bind(this));
-      this.scheduleEvent('playing', this.startTime, this.enterPlayState.bind(this));
+      this.scheduleEvent('playing', startTime, this.enterPlayState.bind(this));
     }
   }
 
@@ -199,9 +197,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private scheduleStopAndCleanup(stopTime: number) {
-    const disposeTime = stopTime + this.timings.connectToGraph.countOut;
-    const freeTime = stopTime + this.timings.loadBuffer.countOut;
-    this.scheduleEvent('stopped', stopTime, this.exitPlayState.bind(this));
+    //console.log("STOP", this.startTime, stopTime)
+    let fadedTime = stopTime + FADE_TIME;
+    const disposeTime = fadedTime + this.timings.connectToGraph.countOut;
+    const freeTime = fadedTime + this.timings.loadBuffer.countOut;
+    this.scheduleEvent('stopped', stopTime, this.stopPlayer.bind(this));
     this.scheduleEvent('disposed', disposeTime, this.resetGraph.bind(this));
     this.scheduleEvent('freed', freeTime, this.freeBuffer.bind(this));
   }
@@ -211,7 +211,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   // most of these throw errors when appropriate to prevent events from emitting
 
   private async initBuffer() {
-    this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
+    if (this.fileUri) {
+      this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
+    }
   }
 
   private async freeBuffer() {
@@ -223,31 +225,45 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private initAndSchedulePlayer() {
-    if (!this.buffer) {
-      throw "failed to schedule, buffer not loaded yet";
+    if (this.buffer) {
+      this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
+      this.delayVolume = new Tone.Volume(0).connect(this.delay);
+      this.audioGraph.push(this.reverbVolume);
+      this.audioGraph.push(this.delayVolume);
+      this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
+      this.panner.connect(this.reverbVolume).connect(this.delayVolume);
+      this.audioGraph.push(this.panner);
+
+      this.player = new Tone.Player(this.buffer);
+
+      //console.log(this.startTime, this.offset, this.duration, this.getDuration())
+      let offsetCorr = Math.min(this.offset, (FADE_TIME/2));
+      this.player.sync().start(this.startTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
+      this.player.connect(this.panner);
+      this.player.fadeIn = FADE_TIME;
+      this.player.fadeOut = FADE_TIME;
+      this.audioGraph.push(this.player);
+
+      this.parameterDispatchers.forEach((dispatcher, paramType) => {
+        if (paramType != Parameter.StartTime) { // will cause infinite loop
+          dispatcher.update();
+        }
+      });
+    } else {
+      console.log("scheduled with empty buffer (may be intended)");
     }
-    this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
-    this.delayVolume = new Tone.Volume(0).connect(this.delay);
-    this.audioGraph.push(this.reverbVolume);
-    this.audioGraph.push(this.delayVolume);
-    this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
-    this.panner.connect(this.reverbVolume).connect(this.delayVolume);
-    this.audioGraph.push(this.panner);
+  }
 
-    this.player = new Tone.Player(this.buffer);
-
-    console.log(this.startTime, this.offset, this.duration)
-    this.player.sync().start(this.startTime, this.offset);//, this.duration);//no duration given, makes it dynamic
-    this.player.connect(this.panner);
-    this.player.fadeIn = 0.02;
-    this.player.fadeOut = 0.02;
-    this.audioGraph.push(this.player);
-
-    this.parameterDispatchers.forEach((dispatcher, paramType) => {
-      if (paramType != Parameter.StartTime) { // will cause infinite loop
-        dispatcher.update();
-      }
-    });
+  private stopPlayer() {
+    if (this.player) {
+      this.player.volume.rampTo(Tone.gainToDb(0), FADE_TIME);
+      setTimeout(() => {
+        //these calls often produce errors due to inconsistencies in tone
+        try { this.player.unsync(); } catch (e) {};
+        try { this.player.stop(); } catch (e) {};
+      }, FADE_TIME*1000)
+    }
+    this.exitPlayState();
   }
 
   private resetGraph() {
