@@ -68,15 +68,22 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.Reverb,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => this.reverbVolume.volume.value = Tone.gainToDb(n)
+        handler: (n: number) => {
+          if (this.reverbVolume.volume) {
+            this.reverbVolume.volume.value = Tone.gainToDb(n*2);
+          }
+        }
       })
     );
     this.parameterDispatchers.set(
       Parameter.Delay,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => this.delayVolume.volume.value = Tone.gainToDb(n)
-      })
+        handler: (n: number) => {
+          if (this.delayVolume.volume) {
+            this.delayVolume.volume.value = Tone.gainToDb(n);
+          }
+      }})
     );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
@@ -231,10 +238,16 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.audioGraph.push(this.reverbVolume);
       this.audioGraph.push(this.delayVolume);
       this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
-      this.panner.connect(this.reverbVolume).connect(this.delayVolume);
+      this.panner.connect(this.reverbVolume);
+      this.panner.connect(this.delayVolume);
       this.audioGraph.push(this.panner);
 
       this.player = new Tone.Player(this.buffer);
+
+      /*this.player = new Tone.GrainPlayer(this.buffer);
+      let playz = <any>this.player;
+      playz.grainSize = 0.1
+      playz.overlap = 0.05*/
 
       //console.log(this.startTime, this.offset, this.duration, this.getDuration())
       let offsetCorr = Math.min(this.offset, (FADE_TIME/2));
