@@ -69,6 +69,10 @@ export class Schedulo implements Scheduler {
     //this.delay = new Tone.Volume(0);
   }
 
+  setTimings(timings: DynamicBufferLifeCycle) {
+    this.timings = timings;
+  }
+
   getAudioBank(): AudioBank {
     return this.audioBank;
   }
