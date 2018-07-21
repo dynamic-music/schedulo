@@ -27,6 +27,7 @@ import { Effects } from './schedulo';
 export interface LifeCycleWindow {
   countIn: number;
   countOut: number;
+  minCountIn: number;
 }
 
 export interface TimeLimited {
@@ -49,8 +50,8 @@ export interface IDisposable {
 }
 
 export const defaultAudioTimings: DynamicBufferLifeCycle = {
-  connectToGraph: {countIn: 2, countOut: 2},
-  loadBuffer: {countIn: 5, countOut: 5}
+  connectToGraph: {countIn: 2, countOut: 2, minCountIn: 0.1},
+  loadBuffer: {countIn: 5, countOut: 5, minCountIn: 1}
 };
 
 export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;

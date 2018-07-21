@@ -3,10 +3,8 @@ import { Event } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime,
   StoppingMode, AudioStatus } from './types';
 import { AudioBank } from './audio-bank';
-import { DynamicBufferLifeCycle, SingleOrMultiValueDispatcher,
+import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable } from './life-cycle';
-
-const FADE_TIME = 0.1;
 
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
   abstract getStartTime(): number;
@@ -37,6 +35,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     private fileUri: string,
     private audioBank: AudioBank,
     private timings: DynamicBufferLifeCycle,
+    private fadeLength: number,
     private reverb: AudioNode,
     private delay: AudioNode,
     private startTime: number
@@ -203,7 +202,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private scheduleStopAndCleanup(stopTime: number) {
     //console.log("STOP", this.startTime, stopTime)
-    let fadedTime = stopTime + FADE_TIME;
+    let fadedTime = stopTime + this.fadeLength;
     const disposeTime = fadedTime + this.timings.connectToGraph.countOut;
     const freeTime = fadedTime + this.timings.loadBuffer.countOut;
     this.scheduleEvent('stopped', stopTime, this.stopPlayer.bind(this));
@@ -237,11 +236,23 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.loading) {
       await this.loading;
     }
+
+    console.log(this.timings.loadBuffer.countIn, this.timings.connectToGraph.countIn);
+
     if (!this.buffer) {
       console.warn("buffer not loaded in time");
+      //increase load ahead time
+      this.increaseCountIn(this.timings.loadBuffer, 0.5);
     } else if (this.startTime < Tone.Transport.seconds) {
       console.warn("scheduled too late");
+      //increase schedule ahead time
+      this.increaseCountIn(this.timings.connectToGraph, 0.1);
+      //try decreasing load ahead time
+      this.decreaseCountIn(this.timings.loadBuffer, 0.1);
     } else {
+      //try decreasing schedule and loading ahead time
+      this.decreaseCountIn(this.timings.connectToGraph, 0.01);
+      this.decreaseCountIn(this.timings.loadBuffer, 0.1);
       this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
       this.delayVolume = new Tone.Volume(0).connect(this.delay);
       this.audioGraph.push(this.reverbVolume);
@@ -259,11 +270,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       playz.overlap = 0.05*/
 
       //console.log(this.startTime, this.offset, this.duration, this.getDuration())
-      let offsetCorr = Math.min(this.offset, (FADE_TIME/2));
+      let offsetCorr = Math.min(this.offset, (this.fadeLength/2));
       this.player.sync().start(this.startTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
       this.player.connect(this.panner);
-      this.player.fadeIn = FADE_TIME;
-      this.player.fadeOut = FADE_TIME;
+      this.player.fadeIn = this.fadeLength;
+      this.player.fadeOut = this.fadeLength;
       this.audioGraph.push(this.player);
 
       this.parameterDispatchers.forEach((dispatcher, paramType) => {
@@ -274,16 +285,28 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
   }
 
+  private increaseCountIn(window: LifeCycleWindow, increment: number) {
+    //adjust min so never goes below that again
+    if (window.countIn == window.minCountIn) {
+      window.minCountIn += increment;
+    }
+    window.countIn += increment;
+  }
+
+  private decreaseCountIn(window: LifeCycleWindow, decrement: number) {
+    window.countIn = Math.max(window.minCountIn, window.countIn-decrement);
+  }
+
   private stopPlayer() {
     if (this.player) {
       if (this.player.volume) {
-        this.player.volume.rampTo(Tone.gainToDb(0), FADE_TIME);
+        this.player.volume.rampTo(Tone.gainToDb(0), this.fadeLength);
       }
       setTimeout(() => {
         //these calls often produce errors due to inconsistencies in tone
         try { this.player.unsync(); } catch (e) {};
         try { this.player.stop(); } catch (e) {};
-      }, FADE_TIME*1000)
+      }, this.fadeLength*1000)
     }
     this.exitPlayState();
   }

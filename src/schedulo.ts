@@ -60,7 +60,7 @@ export class Schedulo implements Scheduler {
   private reverb: AudioNode;
   private delay: AudioNode;
 
-  constructor(private timings = defaultAudioTimings) {
+  constructor(private timings = defaultAudioTimings, private fadeLength = 0.01) {
     const bufferWindow = timings.loadBuffer.countIn+timings.loadBuffer.countOut;
     this.audioBank = new AudioBank(bufferWindow);
     this.reverb = new Tone.Freeverb().toMaster();
@@ -107,7 +107,7 @@ export class Schedulo implements Scheduler {
     let time = this.calculateScheduleTime(startTime);
 
     const objects = fileUris.map(f =>
-      new TonejsAudioObject(f, this.audioBank, this.timings, this.reverb, this.delay, time));
+      new TonejsAudioObject(f, this.audioBank, this.timings, this.fadeLength, this.reverb, this.delay, time));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
