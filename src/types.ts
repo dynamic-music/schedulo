@@ -2,8 +2,13 @@ export enum Subdivision { Beat, Bar }
 
 //schedule time
 
+export interface RefTimeWithOnset {
+  ref: number,
+  onset?: number
+}
+
 export abstract class ScheduleTime { private _:ScheduleTime; } //avoid confusion with any
-export class ScheduleImmediately extends ScheduleTime {}
+export class ScheduleAsap extends ScheduleTime {}
 export class ScheduleAt extends ScheduleTime {
   constructor(public at: string | number) { super(); }
 }
@@ -21,7 +26,7 @@ export class ScheduleRelativeTo extends ScheduleTime {
     public delta: string | number) { super(); }
 }
 export module Time {
-  export const Immediately = new ScheduleImmediately();
+  export const Asap = new ScheduleAsap();
   export function At(time: string | number): ScheduleAt {
     return new ScheduleAt(time);
   }
@@ -82,12 +87,12 @@ export module Transition {
 export class StoppingMode {
   private _:StoppingMode; //avoid confusion with any
 }
-export class StopImmediately extends StoppingMode {}
+export class StopAsap extends StoppingMode {}
 export class StopWithFadeOut extends StoppingMode {
   constructor(public duration: string | number) { super(); }
 }
 export module Stop {
-  export const Immediately = new StopImmediately();
+  export const Asap = new StopAsap();
   export function FadeOut(duration: string | number): StopWithFadeOut {
     return new StopWithFadeOut(duration);
   }
@@ -108,7 +113,7 @@ export enum Parameter {
   PlaybackRate
 }
 export interface ScheduledObject {
-  getStartTime(): number,
+  getScheduleTime(): number,
   getDuration(): number
 }
 

@@ -10,7 +10,7 @@ import { Scheduler, ScheduledObject, AudioObject, EventObject, Subdivision,
   ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
   ScheduleRelativeTo, PlaybackMode, LoopMode,
   TransitionMode, TransitionWithCrossfade,
-  StoppingMode, StopWithFadeOut, Parameter } from './types';
+  StoppingMode, StopWithFadeOut, Parameter, RefTimeWithOnset } from './types';
 import { TonejsScheduledObject, TonejsAudioObject, TonejsEventObject } from './tone-object';
 import { add, createPlayerFactoryAfterLoadingBuffer } from './tone-helpers';
 import {
@@ -69,10 +69,6 @@ export class Schedulo implements Scheduler {
     //this.delay = new Tone.Volume(0);
   }
 
-  setTimings(timings: DynamicBufferLifeCycle) {
-    this.timings = timings;
-  }
-
   getAudioBank(): AudioBank {
     return this.audioBank;
   }
@@ -95,19 +91,19 @@ export class Schedulo implements Scheduler {
     Tone.Transport.start("+0.1");
   }
 
-  getCurrentTime(): number {
+  /*getCurrentTime(): number {
     return Tone.Transport.seconds;
-  }
+  }*/
 
   async scheduleAudio(
     fileUris: string[],
     startTime: ScheduleTime,
     mode: PlaybackMode
   ): Promise<AudioObject[]> {
-    let time = this.calculateScheduleTime(startTime);
+    let times = this.calculateScheduleTime(startTime);
 
     const objects = fileUris.map(f =>
-      new TonejsAudioObject(f, this.audioBank, this.timings, this.fadeLength, this.reverb, this.delay, time));
+      new TonejsAudioObject(f, this.audioBank, this.timings, this.fadeLength, this.reverb, this.delay, times));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
@@ -119,7 +115,7 @@ export class Schedulo implements Scheduler {
   }
 
   transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<AudioObject[]> {
-    let time = this.calculateScheduleTime(startTime);
+    let time = this.calcAbsoluteSchedTime(startTime);
     let duration = mode instanceof TransitionWithCrossfade ? mode.duration : 0;
     return this.scheduleAudio(toAudioFiles, startTime, playbackMode)
       .then(obj => {
@@ -135,17 +131,23 @@ export class Schedulo implements Scheduler {
   }
 
   scheduleEvent(trigger: () => any, time: ScheduleTime): EventObject {
-    let startTime = this.calculateScheduleTime(time);
+    let startTime = this.calcAbsoluteSchedTime(time);
     return new TonejsEventObject(new Tone.Event(trigger).start(startTime));
   }
 
   stopAudio(objects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void {
-    let stopTime = this.calculateScheduleTime(time);
+    let stopTime = this.calcAbsoluteSchedTime(time);
     let duration = mode instanceof StopWithFadeOut ? mode.duration : 0;
     objects.forEach(o => o.ramp(Parameter.Amplitude, -Infinity, duration, stopTime));
   }
 
-  private calculateScheduleTime(time: ScheduleTime): number {
+  private calcAbsoluteSchedTime(time: ScheduleTime): number {
+    let absTime = this.calculateScheduleTime(time);
+    return absTime.ref + absTime.onset;
+  }
+
+  //pair of ref and time
+  private calculateScheduleTime(time: ScheduleTime): RefTimeWithOnset {
     if (time instanceof ScheduleAfter) {
       // TODO this isn't going to work for objects with an indeterminate duration.
       // This is only really complicated by the fact that we want to be able to
@@ -156,24 +158,28 @@ export class Schedulo implements Scheduler {
       // stop time prior to it occuring, there is going to be a delay in scheduling
       // the next event. Either way, we can't know any time upfront...
       // so this needs rethinking
-      return new Tone.Time(calculateEndTime(time.objects)).toSeconds();
+      return {ref: new Tone.Time(calculateEndTime(time.objects)).toSeconds()};
     } else if (time instanceof ScheduleRelativeTo) {
-      return new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
-    }else if (time instanceof ScheduleAt) {
-      return new Tone.Time(time.at).toSeconds();
+      //const diff = new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
+      //console.log("CALC", this.timings.connectToGraph.countIn)
+      let delta = new Tone.Time(time.delta).toSeconds();
+      return {ref: time.object.getScheduleTime(), onset: delta};
+    } else if (time instanceof ScheduleAt) {
+      //adjust to changing count in!!
+      return {ref: new Tone.Time(time.at).toSeconds()};
     } else if (time instanceof ScheduleNext) {
       let subdiv = time.next === Subdivision.Bar ? "1m" : "1n";
-      return Tone.Transport.nextSubdivision(subdiv);
+      return {ref: Tone.Transport.nextSubdivision(subdiv)};
     } else if (time instanceof ScheduleIn) {
-      return Tone.Transport.nextSubdivision(time.inn);
-    } else {
-      return Tone.Transport.seconds+0.1;
+      return {ref: Tone.Transport.nextSubdivision(time.inn)};
+    } else { //instanceof Asap!!
+      return {ref: Tone.Transport.seconds};
     }
   }
 }
 
 //TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
 function calculateEndTime(objects: ScheduledObject[]): string | number {
-  let endTimes = objects.map(o => add(o.getStartTime(), o.getDuration()));
+  let endTimes = objects.map(o => o.getScheduleTime()+o.getDuration());
   return Math.max(...endTimes);
 }

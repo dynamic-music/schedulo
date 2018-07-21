@@ -1,13 +1,13 @@
 import * as Tone from 'tone';
 import { Event } from 'tone';
 import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime,
-  StoppingMode, AudioStatus } from './types';
+  StoppingMode, AudioStatus, RefTimeWithOnset } from './types';
 import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable } from './life-cycle';
 
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
-  abstract getStartTime(): number;
+  abstract getScheduleTime(): number;
   abstract getDuration(): number;
 }
 
@@ -28,6 +28,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private duration: number; // undefined means entire buffer is played
   private durationRatio = 1;
 
+  private playTime: number;
   private loading: Promise<any>;
   private scheduling: Promise<any>;
 
@@ -38,9 +39,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     private fadeLength: number,
     private reverb: AudioNode,
     private delay: AudioNode,
-    private startTime: number
+    private startTime: RefTimeWithOnset
   ) {
     super();
+    if (this.startTime.onset == null) this.startTime.onset = 0;
     this.initParamDispatchers();
     this.updateStartEvents();
     this.updateEndEvents();
@@ -111,8 +113,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
       }
     } else if (param === Parameter.StartTime) {
-      if (!this.isScheduled() && this.startTime != value) {
-        this.startTime = <number>value;
+      //console.log("SET", value, this.startTime.onset)
+      if (!this.isScheduled() && this.startTime.onset != value) {
+        this.startTime.onset = <number>value;
         this.resetEvents();
         this.updateStartEvents();
         this.updateEndEvents();
@@ -140,8 +143,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
-  getStartTime() {
-    return this.startTime;
+  getScheduleTime() {
+    return this.startTime.ref+this.startTime.onset;
   }
 
   getDuration() {
@@ -171,17 +174,19 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private async updateStartEvents() {
-    const startTime = this.startTime// - (FADE_TIME/2);
+    this.playTime = this.startTime.ref+this.startTime.onset+this.timings.connectToGraph.countIn;
+    //console.log(this.playTime, this.startTime.ref,this.startTime.onset,this.timings.connectToGraph.countIn)
     const loadTime = this.toFutureTime(
-      startTime - this.timings.loadBuffer.countIn);
+      this.playTime - this.timings.loadBuffer.countIn);
     this.loading = this.scheduleEvent('loaded', loadTime, this.initBuffer.bind(this));
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
       //console.log("START", startTime)
       const scheduleTime = this.toFutureTime(
-        startTime - this.timings.connectToGraph.countIn);
+        this.playTime - this.timings.connectToGraph.countIn);
+      console.log("UPD", Tone.Transport.seconds, loadTime, scheduleTime, this.playTime)
       //console.log(loadTime-Tone.Transport.seconds, scheduleTime-loadTime, startTime-scheduleTime)
       this.scheduling = this.scheduleEvent('scheduled', scheduleTime, this.initAndSchedulePlayer.bind(this));
-      this.scheduleEvent('playing', startTime, this.enterPlayState.bind(this));
+      this.scheduleEvent('playing', this.playTime, this.enterPlayState.bind(this));
     }
   }
 
@@ -196,12 +201,11 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.resetEvents(this.durationDependentKeys);
     let duration = this.getDuration();
     if (duration) {
-      this.scheduleStopAndCleanup(this.startTime + duration);
+      this.scheduleStopAndCleanup(this.playTime + duration);
     }
   }
 
   private scheduleStopAndCleanup(stopTime: number) {
-    //console.log("STOP", this.startTime, stopTime)
     let fadedTime = stopTime + this.fadeLength;
     const disposeTime = fadedTime + this.timings.connectToGraph.countOut;
     const freeTime = fadedTime + this.timings.loadBuffer.countOut;
@@ -237,22 +241,23 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       await this.loading;
     }
 
-    console.log(this.timings.loadBuffer.countIn, this.timings.connectToGraph.countIn);
+    console.log(Tone.Transport.seconds, this.playTime, this.timings.loadBuffer.countIn, this.timings.connectToGraph.countIn);
 
     if (!this.buffer) {
       console.warn("buffer not loaded in time");
       //increase load ahead time
       this.increaseCountIn(this.timings.loadBuffer, 0.5);
-    } else if (this.startTime < Tone.Transport.seconds) {
-      console.warn("scheduled too late");
+    } else if (this.playTime < Tone.Transport.seconds) {
+      console.warn("scheduled too late", this.buffer);
       //increase schedule ahead time
-      this.increaseCountIn(this.timings.connectToGraph, 0.1);
+      this.increaseCountIn(this.timings.loadBuffer, 0.2);
+      this.increaseCountIn(this.timings.connectToGraph, 0.2);
       //try decreasing load ahead time
-      this.decreaseCountIn(this.timings.loadBuffer, 0.1);
+      this.decreaseCountIn(this.timings.loadBuffer, 0.01);
     } else {
       //try decreasing schedule and loading ahead time
       this.decreaseCountIn(this.timings.connectToGraph, 0.01);
-      this.decreaseCountIn(this.timings.loadBuffer, 0.1);
+      this.decreaseCountIn(this.timings.loadBuffer, 0.01);
       this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
       this.delayVolume = new Tone.Volume(0).connect(this.delay);
       this.audioGraph.push(this.reverbVolume);
@@ -269,9 +274,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       playz.grainSize = 0.1
       playz.overlap = 0.05*/
 
-      //console.log(this.startTime, this.offset, this.duration, this.getDuration())
+      //console.log(startTime, this.offset, this.duration, this.getDuration())
       let offsetCorr = Math.min(this.offset, (this.fadeLength/2));
-      this.player.sync().start(this.startTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
+      this.player.sync().start(this.playTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
       this.player.connect(this.panner);
       this.player.fadeIn = this.fadeLength;
       this.player.fadeOut = this.fadeLength;
@@ -359,7 +364,7 @@ export class TonejsEventObject extends TonejsScheduledObject implements EventObj
     super();
   }
 
-  getStartTime() {
+  getScheduleTime() {
     return this.tonejsEvent
   }
 

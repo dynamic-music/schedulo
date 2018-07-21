@@ -31,8 +31,8 @@ async function testTransition() {
 async function testStopping() {
   let schedulo = new Schedulo();
   schedulo.start();
-  let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.Immediately, Playback.Oneshot());
-  schedulo.stopAudio(id, Time.At(0.5), Stop.Immediately);
+  let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.Asap, Playback.Oneshot());
+  schedulo.stopAudio(id, Time.At(0.5), Stop.Asap);
   id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(0.8), Playback.Oneshot());
   schedulo.stopAudio(id, Time.At(0.8), Stop.FadeOut(4));
 }
