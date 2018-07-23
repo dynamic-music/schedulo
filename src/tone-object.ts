@@ -28,6 +28,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private duration: number; // undefined means entire buffer is played
   private durationRatio = 1;
 
+  private loadTime: number;
+  private schedTime: number;
   private playTime: number;
   private loading: Promise<any>;
   private scheduling: Promise<any>;
@@ -174,18 +176,18 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private async updateStartEvents() {
+    //console.log("UPD", Tone.Transport.seconds, "L", this.timings.loadBuffer.countIn, "S", this.timings.connectToGraph.countIn)
     this.playTime = this.startTime.ref+this.startTime.onset+this.timings.connectToGraph.countIn;
     //console.log(this.playTime, this.startTime.ref,this.startTime.onset,this.timings.connectToGraph.countIn)
-    const loadTime = this.toFutureTime(
+    this.loadTime = this.toFutureTime(
       this.playTime - this.timings.loadBuffer.countIn);
-    this.loading = this.scheduleEvent('loaded', loadTime, this.initBuffer.bind(this));
+    this.loading = this.scheduleEvent('loaded', this.loadTime, this.initBuffer.bind(this));
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
       //console.log("START", startTime)
-      const scheduleTime = this.toFutureTime(
+      this.schedTime = this.toFutureTime(
         this.playTime - this.timings.connectToGraph.countIn);
-      console.log("UPD", Tone.Transport.seconds, loadTime, scheduleTime, this.playTime)
       //console.log(loadTime-Tone.Transport.seconds, scheduleTime-loadTime, startTime-scheduleTime)
-      this.scheduling = this.scheduleEvent('scheduled', scheduleTime, this.initAndSchedulePlayer.bind(this));
+      this.scheduling = this.scheduleEvent('scheduled', this.schedTime, this.initAndSchedulePlayer.bind(this));
       this.scheduleEvent('playing', this.playTime, this.enterPlayState.bind(this));
     }
   }
@@ -220,6 +222,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private async initBuffer() {
     if (this.fileUri) {
+      const t = Tone.Transport.seconds;
       this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
     }
   }
@@ -241,7 +244,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       await this.loading;
     }
 
-    console.log(Tone.Transport.seconds, this.playTime, this.timings.loadBuffer.countIn, this.timings.connectToGraph.countIn);
+    const l = Tone.Transport.seconds;
 
     if (!this.buffer) {
       console.warn("buffer not loaded in time");
@@ -287,6 +290,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           dispatcher.update();
         }
       });
+
+      const s = Tone.Transport.seconds;
+      //console.log("TIM", "L", l, "S", s);
+      //console.log("DEL", "L", l-this.loadTime, "S", s-l, "P", s-this.playTime);
     }
   }
 

@@ -7,10 +7,16 @@ export class AudioBank {
   private buffers = new Map<string, AudioBuffer>();
   private lastRequested = new Map<string, number>();
 
+  preloadBuffers(filePaths: string[]): Promise<any> {
+    return Promise.all(filePaths.map(f => this.createToneBuffer(f)
+      .then(b => this.buffers.set(f, b.get()))));
+  }
+
   /** returns the corresponding tone buffer and loads it if necessary */
   getToneBuffer(filePath: string): Promise<ToneBuffer> {
     this.lastRequested.set(filePath, Date.now());
     if (this.buffers.has(filePath)) {
+      //TODO SOMEHOW TONEJS IS QUITE SLOW AT CREATING NEW BUFFERS!! (ca. 0.05s)
       return this.createToneBuffer(this.buffers.get(filePath));
     }
     return this.createToneBuffer(filePath)
