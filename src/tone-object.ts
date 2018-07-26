@@ -178,12 +178,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private async updateStartEvents() {
     //console.log("UPD", Tone.Transport.seconds, "L", this.timings.loadBuffer.countIn, "S", this.timings.connectToGraph.countIn)
     this.playTime = this.startTime.ref+this.startTime.onset+this.timings.connectToGraph.countIn;
-    //console.log(this.playTime, this.startTime.ref,this.startTime.onset,this.timings.connectToGraph.countIn)
     this.loadTime = this.toFutureTime(
       this.playTime - this.timings.loadBuffer.countIn);
     this.loading = this.scheduleEvent('loaded', this.loadTime, this.initBuffer.bind(this));
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
-      //console.log("START", startTime)
       this.schedTime = this.toFutureTime(
         this.playTime - this.timings.connectToGraph.countIn);
       //console.log(loadTime-Tone.Transport.seconds, scheduleTime-loadTime, startTime-scheduleTime)
