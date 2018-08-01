@@ -60,7 +60,9 @@ interface ToneTransport {
   bpm: { value: number },
   timeSignature: number | number[],
   nextSubdivision(t: string | number): number,
-  start(t: string): void
+  start(time: string): void
+  pause(time: string): void;
+  stop(time: string): void;
 }
 
 interface Signal {

@@ -91,6 +91,14 @@ export class Schedulo implements Scheduler {
     Tone.Transport.start("+0.1");
   }
 
+  pause(): void {
+    Tone.Transport.pause("+0.1");
+  }
+
+  stop(): void {
+    Tone.Transport.stop("+0.1");
+  }
+
   /*getCurrentTime(): number {
     return Tone.Transport.seconds;
   }*/
