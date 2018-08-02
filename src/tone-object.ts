@@ -4,7 +4,7 @@ import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime,
   StoppingMode, AudioStatus, RefTimeWithOnset } from './types';
 import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
-  StoredValueHandler, IDisposable } from './life-cycle';
+  StoredValueHandler, IDisposable, IEvent } from './life-cycle';
 
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
   abstract getScheduleTime(): number;
@@ -15,7 +15,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher> = new Map();
   private audioGraph: IDisposable[] = [];
-  private scheduledEvents: Map<string, IDisposable> = new Map();
+  private scheduledEvents: Map<string, IEvent> = new Map();
   private startTimeDependentKeys: AudioStatus[] = ['playing', 'scheduled', 'loaded'];
   private durationDependentKeys: AudioStatus[] = ['stopped', 'disposed', 'freed'];
   private buffer: ToneBuffer | null;
@@ -141,7 +141,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   //stopped from outside
   stop(time: ScheduleTime, mode: StoppingMode): void {
     this.stopPlayer();
-    this.resetAllEvents();
+    this.removeAllEvents();
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
@@ -158,8 +158,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     return 0;
   }
 
-  private resetAllEvents() {
+  private removeAllEvents() {
     if (this.scheduledEvents.size > 0) {
+      this.scheduledEvents.forEach(event => event.cancel());
       this.scheduledEvents.forEach(event => event.dispose());
       this.scheduledEvents = new Map();
     }
@@ -198,12 +199,14 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private scheduleStopAndCleanup(stopTime: number) {
-    let fadedTime = stopTime + this.fadeLength;
-    const disposeTime = fadedTime + this.timings.connectToGraph.countOut;
-    const freeTime = fadedTime + this.timings.loadBuffer.countOut;
-    this.scheduleEvent('stopped', stopTime, this.stopPlayer.bind(this));
-    this.scheduleEvent('disposed', disposeTime, this.resetGraph.bind(this));
-    this.scheduleEvent('freed', freeTime, this.freeBuffer.bind(this));
+    if (stopTime > Tone.Transport.seconds || !this.scheduledEvents.has('stopped')) {
+      const fadedTime = stopTime + this.fadeLength;
+      const disposeTime = fadedTime + this.timings.connectToGraph.countOut;
+      const freeTime = fadedTime + this.timings.loadBuffer.countOut;
+      this.scheduleEvent('stopped', stopTime, this.stopPlayer.bind(this));
+      this.scheduleEvent('disposed', disposeTime, this.resetGraph.bind(this));
+      this.scheduleEvent('freed', freeTime, this.freeBuffer.bind(this));
+    }
   }
 
 
@@ -223,6 +226,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
     this.buffer = null;
     this.audioBank.freeBuffer(this.fileUri);
+    //completely done, so remove all events
+    this.removeAllEvents();
   }
 
   private async initAndSchedulePlayer() {
@@ -352,12 +357,14 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
         //event.stop(); produces lots of errors
       });
-      //dispose old event and replace
-      if (this.scheduledEvents.has(name)) {
-        this.scheduledEvents.get(name).dispose();
-      }
+      const oldEvent = this.scheduledEvents.get(name);
       this.scheduledEvents.set(name, event);
       event.start(time);
+      //dispose old event and replace
+      if (oldEvent) {
+        oldEvent.cancel();
+        oldEvent.dispose();
+      }
     })
   }
 

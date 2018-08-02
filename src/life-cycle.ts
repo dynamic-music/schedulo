@@ -49,6 +49,10 @@ export interface IDisposable {
   dispose(): void;
 }
 
+export interface IEvent extends IDisposable {
+  cancel(): void;
+}
+
 export const defaultAudioTimings: DynamicBufferLifeCycle = {
   connectToGraph: {countIn: 2, countOut: 2, minCountIn: 0.1},
   loadBuffer: {countIn: 5, countOut: 5, minCountIn: 1}
