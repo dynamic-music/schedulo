@@ -20,10 +20,12 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private durationDependentKeys: AudioStatus[] = ['stopped', 'disposed', 'freed'];
   private buffer: ToneBuffer | null;
   private player: Player;
-  private panner: Panner3D;
+  private panner: Panner3D | PannerNode;
   private reverbVolume: Volume;
   private delayVolume: Volume;
+  private isScheduled = false;
   private isPlaying = false;
+  private isDonePlaying = false;
   private offset = 0;
   private duration: number; // undefined means entire buffer is played
   private durationRatio = 1;
@@ -47,7 +49,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.startTime.onset == null) this.startTime.onset = 0;
     this.initParamDispatchers();
     this.updateStartEvents();
-    this.updateEndEvents();
   }
 
   private initParamDispatchers() {
@@ -107,7 +108,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     const dispatch = this.parameterDispatchers.get(param);
     if (dispatch) {
       dispatch.stored.currentValue = value;
-      if (this.isScheduled()) {
+      if (this.isScheduled) {
         try {
           dispatch.update();
         } catch (err) {
@@ -115,10 +116,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
       }
     } else if (param === Parameter.StartTime) {
-      //console.log("SET", value, this.startTime.onset)
-      if (!this.isScheduled() && this.startTime.onset != value) {
+      if (!this.isScheduled && this.startTime.onset != value) {
         this.startTime.onset = <number>value;
-        this.resetEvents();
         this.updateStartEvents();
         this.updateEndEvents();
       }
@@ -139,9 +138,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
   }
 
+  //stopped from outside
   stop(time: ScheduleTime, mode: StoppingMode): void {
     this.stopPlayer();
-    this.resetEvents();
+    this.resetAllEvents();
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
@@ -153,25 +153,15 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.duration) {
       return this.duration*this.durationRatio;
     } else if (this.buffer) {
-      return this.buffer.duration - this.offset;
+      return (this.buffer.duration - this.offset)*this.durationRatio;
     }
     return 0;
   }
 
-  private resetEvents(keys?: string[]) {
+  private resetAllEvents() {
     if (this.scheduledEvents.size > 0) {
-      if (keys) {
-        keys.forEach(k => {
-          const e = this.scheduledEvents.get(k);
-          if (e) {
-            e.dispose();
-            this.scheduledEvents.delete(k);
-          }
-        });
-      } else {
-        this.scheduledEvents.forEach(event => event.dispose());
-        this.scheduledEvents = new Map();
-      }
+      this.scheduledEvents.forEach(event => event.dispose());
+      this.scheduledEvents = new Map();
     }
   }
 
@@ -198,10 +188,12 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private updateEndEvents() {
-    this.resetEvents(this.durationDependentKeys);
-    let duration = this.getDuration();
-    if (duration) {
-      this.scheduleStopAndCleanup(this.playTime + duration);
+    if (this.buffer && this.isScheduled && !this.isDonePlaying) {
+      let duration = this.getDuration();
+      //console.log("EVE", duration)
+      if (duration) {
+        this.scheduleStopAndCleanup(this.playTime + duration);
+      }
     }
   }
 
@@ -233,10 +225,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.audioBank.freeBuffer(this.fileUri);
   }
 
-  private isScheduled() {
-    return this.player != null;
-  }
-
   private async initAndSchedulePlayer() {
     if (this.loading) {
       await this.loading;
@@ -259,11 +247,13 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       //try decreasing schedule and loading ahead time
       this.decreaseCountIn(this.timings.connectToGraph, 0.01);
       this.decreaseCountIn(this.timings.loadBuffer, 0.01);
+
       this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
       this.delayVolume = new Tone.Volume(0).connect(this.delay);
       this.audioGraph.push(this.reverbVolume);
       this.audioGraph.push(this.delayVolume);
-      this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
+      //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
+      this.panner = Tone.context.createPanner().toMaster();
       this.panner.connect(this.reverbVolume);
       this.panner.connect(this.delayVolume);
       this.audioGraph.push(this.panner);
@@ -289,9 +279,14 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
       });
 
-      const s = Tone.Transport.seconds;
-      //console.log("TIM", "L", l, "S", s);
-      //console.log("DEL", "L", l-this.loadTime, "S", s-l, "P", s-this.playTime);
+      this.isScheduled = true;
+
+      //end events only updated once buffer is there and scheduled
+      this.updateEndEvents();
+
+      /*const s = Tone.Transport.seconds;
+      console.log("TIM", "L", l, "S", s);
+      console.log("DEL", "L", l-this.loadTime, "S", s-l, "P", s-this.playTime);*/
     }
   }
 
@@ -308,6 +303,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private stopPlayer() {
+    this.exitPlayState();
     if (this.player) {
       if (this.player.volume) {
         this.player.volume.rampTo(Tone.gainToDb(0), this.fadeLength);
@@ -318,12 +314,12 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         try { this.player.stop(); } catch (e) {};
       }, this.fadeLength*1000)
     }
-    this.exitPlayState();
   }
 
   private resetGraph() {
     if (this.audioGraph.length > 0) {
-      this.audioGraph.forEach(node => node.dispose());
+      //TODO check if that's enough for original web audio nodes.. (e.g. panner)
+      this.audioGraph.forEach(node => node.dispose ? node.dispose() : null);
       this.audioGraph = [];
     }
   }
@@ -333,9 +329,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private exitPlayState() {
-    if (this.isPlaying) {
-      this.isPlaying = false;
-    }
+    this.isPlaying = false;
+    this.isDonePlaying = true;
   }
 
   /** schedules an event with the given task, adds it to the scheduled map,
@@ -357,6 +352,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
         //event.stop(); produces lots of errors
       });
+      //dispose old event and replace
+      if (this.scheduledEvents.has(name)) {
+        this.scheduledEvents.get(name).dispose();
+      }
       this.scheduledEvents.set(name, event);
       event.start(time);
     })

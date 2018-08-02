@@ -15,6 +15,7 @@ type Tone = {
   Emitter: Emitter<Object | Function>;
   Panner3D: Panner3DConstructor;
   Volume: VolumeConstructor;
+  context: AudioContext;
 };
 
 type BarsBeatsSixteenths = string;
