@@ -11,18 +11,19 @@ export abstract class TonejsScheduledObject extends Tone.Emitter implements Sche
   abstract getDuration(): number;
 }
 
+const PLAYER = "player";
+const PANNER = "panner";
+const DELAY = "delay";
+const REVERB = "reverb";
+
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
 
   private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher> = new Map();
-  private audioGraph: IDisposable[] = [];
+  private audioGraph: Map<string,AudioNode> = new Map();
   private scheduledEvents: Map<string, IEvent> = new Map();
   private startTimeDependentKeys: AudioStatus[] = ['playing', 'scheduled', 'loaded'];
   private durationDependentKeys: AudioStatus[] = ['stopped', 'disposed', 'freed'];
-  private buffer: ToneBuffer | null;
-  private player: Player;
-  private panner: Panner3D | PannerNode;
-  private reverbVolume: Volume;
-  private delayVolume: Volume;
+  private buffer: ToneBuffer;
   private isScheduled = false;
   private isPlaying = false;
   private isDonePlaying = false;
@@ -56,52 +57,46 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.Amplitude,
       new StoredValueHandler({
         currentValue: 1.0,
-        handler: (n: number) => {
-          if (this.player.volume) {
-            this.player.volume.value = Tone.gainToDb(n)
-          }
-        }
+        handler: (n: number) => this.setVolume(PLAYER, Tone.gainToDb(n))
       })
     );
     this.parameterDispatchers.set(
       Parameter.Panning,
       new StoredValueHandler({
         currentValue: [0.0, 0.0, 0.0],
-        handler: (n: number[]) => this.panner.setPosition(
-          n[0], n[1], n[2]
-        )
+        handler: (n: number[]) =>
+          (<PannerNode>this.audioGraph.get(PANNER)).setPosition(n[0], n[1], n[2])
       })
     );
     this.parameterDispatchers.set(
       Parameter.Reverb,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => {
-          if (this.reverbVolume.volume) {
-            this.reverbVolume.volume.value = Tone.gainToDb(n*2);
-          }
-        }
+        handler: (n: number) => this.setVolume(REVERB, Tone.gainToDb(n*2))
       })
     );
     this.parameterDispatchers.set(
       Parameter.Delay,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => {
-          if (this.delayVolume.volume) {
-            this.delayVolume.volume.value = Tone.gainToDb(n);
-          }
-      }})
+        handler: (n: number) => this.setVolume(DELAY, Tone.gainToDb(n))
+      })
     );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
       new StoredValueHandler({
         currentValue: 1.0,
-        handler: (n: number) => {
-          this.player.playbackRate = n;
-        }
+        handler: (n: number) =>
+          (<Player>this.audioGraph.get(PLAYER)).playbackRate = n
       })
     );
+  }
+
+  private setVolume(nodeName: string, value: number) {
+    const volume = (<Volume>this.audioGraph.get(nodeName)).volume;
+    if (volume) {
+      (<Volume>this.audioGraph.get(nodeName)).volume.value = value;
+    }
   }
 
   set(param: Parameter, value: number | number[]): void {
@@ -134,7 +129,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void {
     if (param === Parameter.Amplitude) {
-      this.player.volume.linearRampTo(value, duration, time);
+      (<Player>this.audioGraph.get(PLAYER)).volume.linearRampTo(value, duration, time);
     }
   }
 
@@ -224,6 +219,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (!this.buffer) {
       throw "no buffer to free";
     }
+    this.buffer.dispose();
     this.buffer = null;
     this.audioBank.freeBuffer(this.fileUri);
     //completely done, so remove all events
@@ -253,30 +249,26 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.decreaseCountIn(this.timings.connectToGraph, 0.01);
       this.decreaseCountIn(this.timings.loadBuffer, 0.01);
 
-      this.reverbVolume = new Tone.Volume(0).connect(this.reverb);
-      this.delayVolume = new Tone.Volume(0).connect(this.delay);
-      this.audioGraph.push(this.reverbVolume);
-      this.audioGraph.push(this.delayVolume);
+      this.audioGraph.set(REVERB, new Tone.Volume(0).connect(this.reverb));
+      this.audioGraph.set(DELAY, new Tone.Volume(0).connect(this.delay));
       //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
-      this.panner = Tone.context.createPanner().toMaster();
-      this.panner.connect(this.reverbVolume);
-      this.panner.connect(this.delayVolume);
-      this.audioGraph.push(this.panner);
+      const panner = Tone.context.createPanner().toMaster();
+      this.audioGraph.set(PANNER, panner);
+      panner.connect(this.audioGraph.get(REVERB));
+      panner.connect(this.audioGraph.get(DELAY));
 
-      this.player = new Tone.Player(this.buffer);
+      const player = new Tone.Player(this.buffer);
+      this.audioGraph.set(PLAYER, player);
 
-      /*this.player = new Tone.GrainPlayer(this.buffer);
-      let playz = <any>this.player;
-      playz.grainSize = 0.1
-      playz.overlap = 0.05*/
+      /*const player = new Tone.GrainPlayer(this.buffer);
+      player.grainSize = 0.1
+      player.overlap = 0.05*/
 
-      //console.log(startTime, this.offset, this.duration, this.getDuration())
       let offsetCorr = Math.min(this.offset, (this.fadeLength/2));
-      this.player.sync().start(this.playTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
-      this.player.connect(this.panner);
-      this.player.fadeIn = this.fadeLength;
-      this.player.fadeOut = this.fadeLength;
-      this.audioGraph.push(this.player);
+      player.sync().start(this.playTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
+      player.connect(panner);
+      player.fadeIn = this.fadeLength;
+      player.fadeOut = this.fadeLength;
 
       this.parameterDispatchers.forEach((dispatcher, paramType) => {
         if (paramType != Parameter.StartTime) { // will cause infinite loop
@@ -309,24 +301,22 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private stopPlayer() {
     this.exitPlayState();
-    if (this.player) {
-      if (this.player.volume) {
-        this.player.volume.rampTo(Tone.gainToDb(0), this.fadeLength);
+    const player = (<Player>this.audioGraph.get(PLAYER));
+    if (player) {
+      if (player.volume) {
+        player.volume.rampTo(Tone.gainToDb(0), this.fadeLength);
       }
       setTimeout(() => {
         //these calls often produce errors due to inconsistencies in tone
-        try { this.player.unsync(); } catch (e) {};
-        try { this.player.stop(); } catch (e) {};
+        try { player.unsync(); } catch (e) {};
+        try { player.stop(); } catch (e) {};
       }, this.fadeLength*1000)
     }
   }
 
   private resetGraph() {
-    if (this.audioGraph.length > 0) {
-      //TODO check if that's enough for original web audio nodes.. (e.g. panner)
-      this.audioGraph.forEach(node => node.dispose ? node.dispose() : null);
-      this.audioGraph = [];
-    }
+    this.audioGraph.forEach(node => node.dispose ? node.dispose() : node.disconnect());
+    this.audioGraph.clear();
   }
 
   private async enterPlayState() {

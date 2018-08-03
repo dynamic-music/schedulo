@@ -76,11 +76,13 @@ interface Signal {
 interface ToneBuffer {
   get(): AudioBuffer;
   duration: number;
+  dispose(): void;
 } // TODO, currently incomplete
 
 interface AudioNode {
   connect(unit: AudioNode): this;
   dispose(): void;
+  disconnect(): void;
   toMaster(): this;
 }
 
