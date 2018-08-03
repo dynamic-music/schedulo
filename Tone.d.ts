@@ -64,6 +64,7 @@ interface ToneTransport {
   start(time: string): void
   pause(time: string): void;
   stop(time: string): void;
+  state: string;
 }
 
 interface Signal {

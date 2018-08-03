@@ -14,7 +14,6 @@ newTest()
 
 async function newTest() {
   let schedulo = new Schedulo();
-  schedulo.start();
   let objects = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(1), Playback.Oneshot());
   objects[0].set(Parameter.Duration, 1)
   objects[0].set(Parameter.Delay, 1)
@@ -23,14 +22,12 @@ async function newTest() {
 
 async function testTransition() {
   let schedulo = new Schedulo();
-  schedulo.start();
   let id = await schedulo.scheduleAudio(["./loops/long1.m4a"], Time.At(1), Playback.Oneshot());
   schedulo.transition(id, ["./loops/long2.m4a"], Time.At(4), Transition.CrossFade(8), Playback.Oneshot());
 }
 
 async function testStopping() {
   let schedulo = new Schedulo();
-  schedulo.start();
   let id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.Asap, Playback.Oneshot());
   schedulo.stopAudio(id, Time.At(0.5), Stop.Asap);
   id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(0.8), Playback.Oneshot());
@@ -40,7 +37,6 @@ async function testStopping() {
 async function testSubdiv() {
   let schedulo = new Schedulo();
   schedulo.setTempo(170);
-  schedulo.start();
   setTimeout(async()=> {
     await schedulo.scheduleAudio(["./loops/2.m4a"], Time.Next(Subdivision.Bar), Playback.Oneshot());
     await schedulo.scheduleAudio(["./loops/1.m4a"], Time.In("1:2"), Playback.Oneshot());
@@ -54,7 +50,6 @@ async function test() {
   schedulo.scheduleEvent(() => console.log("EVENT"), Time.At(1.3));
   schedulo.scheduleAudio(["./loops/1.m4a"], Time.After(id), Playback.Oneshot());
   schedulo.setLoop(0.5, 2.2);
-  schedulo.start();
   setTimeout(()=>schedulo.setLoop(1.3,2.5), 5000);
 }
 
@@ -64,7 +59,6 @@ async function testLongFileChop() {
   for (let i = 1; i < 8; i++) {
     id = await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.After(id), Playback.Oneshot(i, 1));
   }
-  schedulo.start();
 }
 
 async function testLoopPoints() {
@@ -74,7 +68,6 @@ async function testLoopPoints() {
     Time.At(1),
     Playback.Loop(10, 5, 2)
   );
-  schedulo.start();
 }
 
 async function testLoopMultipleMaxPeriod(startTime: number = 1) {
@@ -84,7 +77,6 @@ async function testLoopMultipleMaxPeriod(startTime: number = 1) {
     Time.At(startTime),
     Playback.Loop(2, 0, 20)
   );
-  schedulo.start();
   return {schedulo, scheduled};
 }
 
@@ -105,7 +97,6 @@ async function testScheduleAfter() {
     Time.After(two),
     Playback.Oneshot()
   );
-  schedulo.start();
 }
 
 async function testChangeAmplitude() {
@@ -115,7 +106,6 @@ async function testChangeAmplitude() {
     Time.At(10),
     Playback.Oneshot()
   );
-  schedulo.start();
   await schedulo.scheduleEvent(() => {
     console.warn('change volume');
     loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
@@ -135,7 +125,6 @@ async function testLifeCycleLoadAfterDispose() {
     Playback.Oneshot()
   );
   again[0].set(Parameter.Amplitude, 0.5);
-  schedulo.start();
   await schedulo.scheduleEvent(() => {
     console.warn('change volume');
     loop.forEach(obj => obj.set(Parameter.Amplitude, 0.5));
@@ -149,7 +138,6 @@ async function testLifeCycleChangeOffsetBeforeScheduledTime() {
     Time.At(5),
     Playback.Oneshot()
   );
-  schedulo.start();
   await schedulo.scheduleEvent(() => {
     console.warn('change start time');
     loop.forEach(obj => obj.set(Parameter.StartTime, 10));
@@ -190,12 +178,10 @@ async function testLazyScheduling() {
     Time.At(10.0),
     Playback.Oneshot()
   );
-  schedulo.start();
 }
 
 async function testScheduleAtSameTime() {
   const schedulo = new Schedulo();
-  schedulo.start();
   const [first] = await schedulo.scheduleAudio(
     ['./loops/1.wav'],
     Time.At(5),

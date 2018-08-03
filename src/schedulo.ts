@@ -67,6 +67,7 @@ export class Schedulo implements Scheduler {
     this.delay = new Tone.FeedbackDelay(0.5, 0.6).toMaster();
     //this.reverb = new Tone.Volume(0);
     //this.delay = new Tone.Volume(0);
+    this.start();
   }
 
   getAudioBank(): AudioBank {
@@ -87,21 +88,18 @@ export class Schedulo implements Scheduler {
     Tone.Transport.timeSignature = [numerator, denominator];
   }
 
-  start(): void {
+  private start(): void {
     Tone.Transport.start("+0.1");
   }
 
+  /** pauses if not paused, resumes otherwise */
   pause(): void {
-    Tone.Transport.pause("+0.1");
+    if (Tone.Transport.state == "started") {
+      Tone.Transport.pause("+0.1");
+    } else if (Tone.Transport.state == "paused") {
+      this.start();
+    }
   }
-
-  stop(): void {
-    Tone.Transport.stop("+0.1");
-  }
-
-  /*getCurrentTime(): number {
-    return Tone.Transport.seconds;
-  }*/
 
   async scheduleAudio(
     fileUris: string[],
