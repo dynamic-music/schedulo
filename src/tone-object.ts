@@ -252,7 +252,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.audioGraph.set(REVERB, new Tone.Volume(0).connect(this.reverb));
       this.audioGraph.set(DELAY, new Tone.Volume(0).connect(this.delay));
       //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
-      const panner = Tone.context.createPanner().toMaster();
+      const panner = Tone.context.createPanner();
+      panner.connect(Tone.Master);
       this.audioGraph.set(PANNER, panner);
       panner.connect(this.audioGraph.get(REVERB));
       panner.connect(this.audioGraph.get(DELAY));
