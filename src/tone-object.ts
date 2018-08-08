@@ -57,7 +57,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.Amplitude,
       new StoredValueHandler({
         currentValue: 1.0,
-        handler: (n: number) => this.setVolume(PLAYER, Tone.gainToDb(n))
+        handler: (n: number) => this.setGain(PLAYER, n)
       })
     );
     this.parameterDispatchers.set(
@@ -72,14 +72,14 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       Parameter.Reverb,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => this.setVolume(REVERB, Tone.gainToDb(n*2))
+        handler: (n: number) => this.setGain(REVERB, n*2)
       })
     );
     this.parameterDispatchers.set(
       Parameter.Delay,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => this.setVolume(DELAY, Tone.gainToDb(n))
+        handler: (n: number) => this.setGain(DELAY, n)
       })
     );
     this.parameterDispatchers.set(
@@ -92,10 +92,12 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     );
   }
 
-  private setVolume(nodeName: string, value: number) {
+  private setGain(nodeName: string, value: number) {
+    const db = Tone.gainToDb(value);
+    console.log(nodeName, value)
     const volume = (<Volume>this.audioGraph.get(nodeName)).volume;
     if (volume) {
-      (<Volume>this.audioGraph.get(nodeName)).volume.value = value;
+      (<Volume>this.audioGraph.get(nodeName)).volume.value = db;
     }
   }
 
