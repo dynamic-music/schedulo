@@ -19,10 +19,10 @@ export class ScheduleIn extends ScheduleTime {
   constructor(public inn: string | number) { super(); }
 }
 export class ScheduleAfter extends ScheduleTime {
-  constructor(public objects: ScheduledObject[]) { super(); }
+  constructor(public objects: ScheduloObject[]) { super(); }
 }
 export class ScheduleRelativeTo extends ScheduleTime {
-  constructor(public object: ScheduledObject,
+  constructor(public object: ScheduloObject,
     public delta: string | number) { super(); }
 }
 export module Time {
@@ -36,10 +36,10 @@ export module Time {
   export function In(time: string | number): ScheduleIn {
     return new ScheduleIn(time);
   }
-  export function After(objects: ScheduledObject[]): ScheduleAfter {
+  export function After(objects: ScheduloObject[]): ScheduleAfter {
     return new ScheduleAfter(objects);
   }
-  export function RelativeTo(object: ScheduledObject,
+  export function RelativeTo(object: ScheduloObject,
       delta: string | number): ScheduleRelativeTo {
     return new ScheduleRelativeTo(object, delta);
   }
@@ -112,20 +112,19 @@ export enum Parameter {
   Loop,
   PlaybackRate
 }
-export interface ScheduledObject {
+export type ObjectStatus = 'scheduled' | 'disposed' | 'playing' | 'stopped' | 'loaded' | 'freed';
+export interface ScheduloObject extends IEmitter<ObjectStatus, number | string> {
   getScheduleTime(): number,
-  getDuration(): number
+  getDuration(): number,
+  set(param: Parameter, value: number | number[]): void,
+  stop(time: ScheduleTime, mode: StoppingMode): void
 }
 
-export type AudioStatus = 'playing' | 'stopped' | 'scheduled' | 'loaded' | 'disposed' | 'freed';
-export interface AudioObject extends
-  ScheduledObject, IEmitter<AudioStatus, number | string> {
-  set(param: Parameter, value: number): void,
+export interface AudioObject extends ScheduloObject {
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void,
-  stop(time: ScheduleTime, mode: StoppingMode): void
   //etc
 }
-export interface EventObject extends ScheduledObject {}
+export interface EventObject extends ScheduloObject {}
 
 //scheduler
 
@@ -134,10 +133,10 @@ export interface Scheduler {
   setTempo(bpm: number): void;
   setMeter(numerator: number, denominator: number): void;
 
-  scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): Promise<AudioObject[]>;
+  scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[];
   scheduleEvent(trigger: () => any, startTime: ScheduleTime): EventObject;
 
-  transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): Promise<AudioObject[]>;
+  transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): AudioObject[];
 
   stopAudio(audioObjects: AudioObject[], time: ScheduleTime, mode: StoppingMode): void;
 

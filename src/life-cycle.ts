@@ -9,7 +9,7 @@ import {
   StoppingMode,
   PlaybackMode,
   LoopMode,
-  AudioStatus
+  ObjectStatus
 } from './types';
 import * as Tone from 'tone';
 import { Event, Time, gainToDb, Emitter } from 'tone';

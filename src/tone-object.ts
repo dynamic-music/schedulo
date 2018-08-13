@@ -1,14 +1,61 @@
 import * as Tone from 'tone';
 import { Event } from 'tone';
-import { ScheduledObject, AudioObject, EventObject, Parameter, ScheduleTime,
-  StoppingMode, AudioStatus, RefTimeWithOnset } from './types';
+import { ScheduloObject, AudioObject, EventObject, Parameter, ScheduleTime,
+  StoppingMode, ObjectStatus, RefTimeWithOnset } from './types';
 import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable, IEvent } from './life-cycle';
 
-export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduledObject {
+export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduloObject {
+  protected scheduledEvents: Map<string, IEvent> = new Map();
+
+  constructor(protected startTime: RefTimeWithOnset) {
+    super();
+    if (this.startTime.onset == null) this.startTime.onset = 0;
+  }
+
   abstract getScheduleTime(): number;
   abstract getDuration(): number;
+  abstract set(param: Parameter, value: number | number[]): void;
+  abstract stop(time: ScheduleTime, mode: StoppingMode): void
+
+  /** schedules an event with the given task, adds it to the scheduled map,
+    and returns a promise that gets resolved when the event is triggered, to
+    enable scheduling dependent events. errors are simply caught and printed */
+  protected scheduleEvent(name: ObjectStatus, time: number,
+      task?: (n?: number) => void): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const event = new Event(async time => {
+        if (task) {
+          try {
+            await task(time);
+            //console.log(name, time);
+            this.emit(name, time);
+          } catch (err) {
+            console.warn(err);//, this.fileUri);
+          }
+          resolve();
+        }
+        //event.stop(); produces lots of errors
+      });
+      const oldEvent = this.scheduledEvents.get(name);
+      this.scheduledEvents.set(name, event);
+      event.start(time);
+      //dispose old event and replace
+      if (oldEvent) {
+        oldEvent.cancel();
+        oldEvent.dispose();
+      }
+    })
+  }
+
+  protected removeAllEvents() {
+    if (this.scheduledEvents.size > 0) {
+      this.scheduledEvents.forEach(event => event.cancel());
+      this.scheduledEvents.forEach(event => event.dispose());
+      this.scheduledEvents = new Map();
+    }
+  }
 }
 
 const PLAYER = "player";
@@ -20,9 +67,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher> = new Map();
   private audioGraph: Map<string,AudioNode> = new Map();
-  private scheduledEvents: Map<string, IEvent> = new Map();
-  private startTimeDependentKeys: AudioStatus[] = ['playing', 'scheduled', 'loaded'];
-  private durationDependentKeys: AudioStatus[] = ['stopped', 'disposed', 'freed'];
+  private startTimeDependentKeys: ObjectStatus[] = ['playing', 'scheduled', 'loaded'];
+  private durationDependentKeys: ObjectStatus[] = ['stopped', 'disposed', 'freed'];
   private buffer: ToneBuffer;
   private isScheduled = false;
   private isPlaying = false;
@@ -44,10 +90,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     private fadeLength: number,
     private reverb: AudioNode,
     private delay: AudioNode,
-    private startTime: RefTimeWithOnset
+    startTime: RefTimeWithOnset
   ) {
-    super();
-    if (this.startTime.onset == null) this.startTime.onset = 0;
+    super(startTime);
     this.initParamDispatchers();
     this.updateStartEvents();
   }
@@ -94,7 +139,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private setGain(nodeName: string, value: number) {
     const db = Tone.gainToDb(value);
-    console.log(nodeName, value)
     const volume = (<Volume>this.audioGraph.get(nodeName)).volume;
     if (volume) {
       (<Volume>this.audioGraph.get(nodeName)).volume.value = db;
@@ -153,14 +197,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       return (this.buffer.duration - this.offset)*this.durationRatio;
     }
     return 0;
-  }
-
-  private removeAllEvents() {
-    if (this.scheduledEvents.size > 0) {
-      this.scheduledEvents.forEach(event => event.cancel());
-      this.scheduledEvents.forEach(event => event.dispose());
-      this.scheduledEvents = new Map();
-    }
   }
 
   private async updateStartEvents() {
@@ -331,48 +367,42 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.isDonePlaying = true;
   }
 
-  /** schedules an event with the given task, adds it to the scheduled map,
-    and returns a promise that gets resolved when the event is triggered, to
-    enable scheduling dependent events. errors are simply caught and printed */
-  private scheduleEvent(name: AudioStatus, time: number,
-      task?: (n?: number) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const event = new Event(async time => {
-        if (task) {
-          try {
-            await task(time);
-            //console.log(name, time);
-            this.emit(name, time);
-          } catch (err) {
-            console.warn(err, this.fileUri);
-          }
-          resolve();
-        }
-        //event.stop(); produces lots of errors
-      });
-      const oldEvent = this.scheduledEvents.get(name);
-      this.scheduledEvents.set(name, event);
-      event.start(time);
-      //dispose old event and replace
-      if (oldEvent) {
-        oldEvent.cancel();
-        oldEvent.dispose();
-      }
-    })
-  }
-
 }
 
 export class TonejsEventObject extends TonejsScheduledObject implements EventObject {
-  constructor(private tonejsEvent: any) {
-    super();
+
+  private triggerTime;
+  private isScheduled;
+
+  constructor(private triggerFunction: () => any, startTime: RefTimeWithOnset) {
+    super(startTime);
+    this.updateEvent();
+  }
+
+  set(param: Parameter, value: number | number[]): void {
+    if (param === Parameter.StartTime) {
+      if (!this.isScheduled && this.startTime.onset != value) {
+        this.startTime.onset = <number>value;
+        this.updateEvent();
+      }
+    }
+  }
+
+  stop(time: ScheduleTime, mode: StoppingMode): void {
+    this.removeAllEvents();
   }
 
   getScheduleTime() {
-    return this.tonejsEvent
+    return this.startTime.ref+this.startTime.onset;
   }
 
   getDuration() {
     return 0;
   }
+
+  private updateEvent() {
+    this.triggerTime = this.startTime.ref+this.startTime.onset;
+    this.scheduleEvent('scheduled', this.triggerTime, this.triggerFunction);
+  }
+
 }

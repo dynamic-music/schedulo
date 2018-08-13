@@ -1,6 +1,5 @@
 import * as Tone from 'tone';
 import { Time, Player } from 'tone';
-import { ScheduledObject } from './types';
 
 export interface ScheduleOptions {
   startTime: string | number;

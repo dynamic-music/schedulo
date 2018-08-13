@@ -10,7 +10,13 @@ import {
 //import { ManagedAudioEvent } from './life-cycle';
 
 //testScheduleAtSameTime();
-newTest()
+testEvents()
+
+async function testEvents() {
+  let schedulo = new Schedulo();
+  await schedulo.scheduleEvent(() => console.log("YO"), Time.At(1));
+  await schedulo.scheduleEvent(() => console.log("YA"), Time.At(1.5));
+}
 
 async function newTest() {
   let schedulo = new Schedulo();

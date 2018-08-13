@@ -8,8 +8,12 @@ export class AudioBank {
   private lastRequested = new Map<string, number>();
 
   preloadBuffers(filePaths: string[]): Promise<any> {
-    return Promise.all(filePaths.map(f => this.createToneBuffer(f)
-      .then(b => this.buffers.set(f, b.get()))));
+    return Promise.all(filePaths.map(f => {
+      if (!this.buffers.has(f)) {
+        this.createToneBuffer(f)
+          .then(b => this.buffers.set(f, b.get()))
+      }
+    }));
   }
 
   /** returns the corresponding tone buffer and loads it if necessary */
