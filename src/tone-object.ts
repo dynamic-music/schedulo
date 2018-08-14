@@ -8,16 +8,24 @@ import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
 
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduloObject {
   protected scheduledEvents: Map<string, IEvent> = new Map();
+  protected playTime: number;
 
-  constructor(protected startTime: RefTimeWithOnset) {
+  constructor(protected startTime: RefTimeWithOnset, protected timings: DynamicBufferLifeCycle) {
     super();
     if (this.startTime.onset == null) this.startTime.onset = 0;
   }
 
-  abstract getScheduleTime(): number;
   abstract getDuration(): number;
   abstract set(param: Parameter, value: number | number[]): void;
-  abstract stop(time: ScheduleTime, mode: StoppingMode): void
+  abstract stop(time: ScheduleTime, mode: StoppingMode): void;
+
+  getScheduleTime() {
+    return this.startTime.ref+this.startTime.onset;
+  }
+
+  protected updatePlayTime() {
+    this.playTime = this.startTime.ref+this.startTime.onset+this.timings.connectToGraph.countIn;
+  }
 
   /** schedules an event with the given task, adds it to the scheduled map,
     and returns a promise that gets resolved when the event is triggered, to
@@ -79,20 +87,19 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private loadTime: number;
   private schedTime: number;
-  private playTime: number;
   private loading: Promise<any>;
   private scheduling: Promise<any>;
 
   constructor(
     private fileUri: string,
     private audioBank: AudioBank,
-    private timings: DynamicBufferLifeCycle,
+    timings: DynamicBufferLifeCycle,
     private fadeLength: number,
     private reverb: AudioNode,
     private delay: AudioNode,
     startTime: RefTimeWithOnset
   ) {
-    super(startTime);
+    super(startTime, timings);
     this.initParamDispatchers();
     this.updateStartEvents();
   }
@@ -186,10 +193,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
-  getScheduleTime() {
-    return this.startTime.ref+this.startTime.onset;
-  }
-
   getDuration() {
     if (this.duration) {
       return this.duration*this.durationRatio;
@@ -201,7 +204,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private async updateStartEvents() {
     //console.log("UPD", Tone.Transport.seconds, "L", this.timings.loadBuffer.countIn, "S", this.timings.connectToGraph.countIn)
-    this.playTime = this.startTime.ref+this.startTime.onset+this.timings.connectToGraph.countIn;
+    this.updatePlayTime();
     this.loadTime = this.toFutureTime(
       this.playTime - this.timings.loadBuffer.countIn);
     this.loading = this.scheduleEvent('loaded', this.loadTime, this.initBuffer.bind(this));
@@ -371,11 +374,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
 export class TonejsEventObject extends TonejsScheduledObject implements EventObject {
 
-  private triggerTime;
   private isScheduled;
 
-  constructor(private triggerFunction: () => any, startTime: RefTimeWithOnset) {
-    super(startTime);
+  constructor(private triggerFunction: () => any, startTime: RefTimeWithOnset, timings: DynamicBufferLifeCycle) {
+    super(startTime, timings);
     this.updateEvent();
   }
 
@@ -392,17 +394,13 @@ export class TonejsEventObject extends TonejsScheduledObject implements EventObj
     this.removeAllEvents();
   }
 
-  getScheduleTime() {
-    return this.startTime.ref+this.startTime.onset;
-  }
-
   getDuration() {
     return 0;
   }
 
   private updateEvent() {
-    this.triggerTime = this.startTime.ref+this.startTime.onset;
-    this.scheduleEvent('scheduled', this.triggerTime, this.triggerFunction);
+    this.updatePlayTime();
+    this.scheduleEvent('scheduled', this.playTime, this.triggerFunction);
   }
 
 }

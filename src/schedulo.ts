@@ -52,7 +52,7 @@ export interface Effects {
 
 export class Schedulo implements Scheduler {
 
-  private scheduledObjects: EventObject[] = [];
+  private scheduledObjects: ScheduloObject[] = [];
   private audioBank: AudioBank;
   private reverb: AudioNode;
   private delay: AudioNode;
@@ -108,7 +108,7 @@ export class Schedulo implements Scheduler {
 
   scheduleEvent(triggerFunction: () => any, time: ScheduleTime): EventObject {
     let startTime = this.calculateScheduleTime(time);
-    return new TonejsEventObject(triggerFunction, startTime);
+    return new TonejsEventObject(triggerFunction, startTime, this.timings);
   }
 
   transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): AudioObject[] {
