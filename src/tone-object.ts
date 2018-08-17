@@ -142,6 +142,18 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           (<Player>this.audioGraph.get(PLAYER)).playbackRate = n
       })
     );
+    //TODO for now time stretching made with playback rate held stable during playback
+    this.parameterDispatchers.set(
+      Parameter.TimeStretchRatio,
+      new StoredValueHandler({
+        currentValue: 1.0,
+        handler: (n: number) => {
+          if (!this.isScheduled) {
+            (<Player>this.audioGraph.get(PLAYER)).playbackRate = n
+          }
+        }
+      })
+    );
   }
 
   private setGain(nodeName: string, value: number) {
@@ -169,10 +181,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         this.updateStartEvents();
         this.updateEndEvents();
       }
-    } else if (param === Parameter.Duration && this.duration != value) {
+    } else if (param === Parameter.Duration && this.duration != value && !this.isScheduled) {
       this.duration = <number>value;
       this.updateEndEvents();
-    } else if (param === Parameter.DurationRatio && this.durationRatio != value) {
+    } else if (param === Parameter.DurationRatio && this.durationRatio != value && !this.isScheduled) {
       this.durationRatio = <number>value;
       this.updateEndEvents();
     } else if (param === Parameter.Offset && this.offset != value) {
@@ -227,7 +239,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private updateEndEvents() {
     if (this.buffer && this.isScheduled && !this.isDonePlaying) {
       let duration = this.getDuration();
-      //console.log("EVE", duration)
+      //console.log(this.startTime.ref, this.duration, this.durationRatio, duration, (<Player>this.audioGraph.get(PLAYER)).playbackRate)
       if (duration) {
         this.scheduleStopAndCleanup(this.playTime + duration);
       }
@@ -303,8 +315,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.audioGraph.set(PLAYER, player);
 
       /*const player = new Tone.GrainPlayer(this.buffer);
-      player.grainSize = 0.1
-      player.overlap = 0.05*/
+      player.grainSize = 0.01;
+      player.overlap = 0.05;
+      player.loop = false;
+      this.audioGraph.set(PLAYER, player);*/
 
       let offsetCorr = Math.min(this.offset, (this.fadeLength/2));
       player.sync().start(this.playTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic

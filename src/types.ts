@@ -110,7 +110,8 @@ export enum Parameter {
   Reverb,
   Delay,
   Loop,
-  PlaybackRate
+  PlaybackRate,
+  TimeStretchRatio
 }
 export type ObjectStatus = 'scheduled' | 'disposed' | 'playing' | 'stopped' | 'loaded' | 'freed';
 export interface ScheduloObject extends IEmitter<ObjectStatus, number | string> {
