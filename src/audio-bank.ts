@@ -1,10 +1,12 @@
 import * as Tone from 'tone';
+import { TimeStretcher } from './timestretcher';
 
 export class AudioBank {
 
-  constructor(private minUnusedTime: number) {}
+  constructor(private minUnusedTime: number, private fadeLength: number) {}
 
   private buffers = new Map<string, AudioBuffer>();
+  private stretchedBuffers = new Map<string, Map<number, AudioBuffer>>();
   private lastRequested = new Map<string, number>();
 
   preloadBuffers(filePaths: string[]): Promise<any> {
@@ -17,17 +19,20 @@ export class AudioBank {
   }
 
   /** returns the corresponding tone buffer and loads it if necessary */
-  getToneBuffer(filePath: string): Promise<ToneBuffer> {
+  async getToneBuffer(filePath: string, stretchRatio?: number, offset?: number, duration?: number): Promise<ToneBuffer> {
     this.lastRequested.set(filePath, Date.now());
-    if (this.buffers.has(filePath)) {
+    let buffer: AudioBuffer;
+    if (!this.buffers.has(filePath)) {
       //TODO SOMEHOW TONEJS IS QUITE SLOW AT CREATING NEW BUFFERS!! (ca. 0.05s)
-      return this.createToneBuffer(this.buffers.get(filePath));
+      buffer = (await this.createToneBuffer(filePath)).get();
+      this.buffers.set(filePath, buffer);
     }
-    return this.createToneBuffer(filePath)
-      .then(b => {
-        this.buffers.set(filePath, b.get());
-        return b;
-      });
+    buffer = this.buffers.get(filePath);
+    if (stretchRatio != 1 || offset != null || duration != null) {
+      buffer = new TimeStretcher(Tone.context, this.fadeLength)
+        .getStretchedTrimmedBuffer(buffer, stretchRatio, offset, duration);
+    }
+    return this.createToneBuffer(buffer);
   }
 
   async getAudioBuffer(filePath: string): Promise<AudioBuffer> {

@@ -84,6 +84,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private offset = 0;
   private duration: number; // undefined means entire buffer is played
   private durationRatio = 1;
+  private timeStretchRatio = 1;
 
   private loadTime: number;
   private schedTime: number;
@@ -142,7 +143,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           (<Player>this.audioGraph.get(PLAYER)).playbackRate = n
       })
     );
-    //TODO for now time stretching made with playback rate held stable during playback
+    /*TODO for now time stretching made with playback rate held stable during playback
     this.parameterDispatchers.set(
       Parameter.TimeStretchRatio,
       new StoredValueHandler({
@@ -153,7 +154,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
           }
         }
       })
-    );
+    );*/
   }
 
   private setGain(nodeName: string, value: number) {
@@ -186,6 +187,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.updateEndEvents();
     } else if (param === Parameter.DurationRatio && this.durationRatio != value && !this.isScheduled) {
       this.durationRatio = <number>value;
+      this.updateEndEvents();
+    } else if (param === Parameter.TimeStretchRatio && this.timeStretchRatio != value && !this.buffer) {
+      this.timeStretchRatio = <number>value;
       this.updateEndEvents();
     } else if (param === Parameter.Offset && this.offset != value) {
       this.offset = <number>value;
@@ -264,7 +268,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private async initBuffer() {
     if (this.fileUri) {
       const t = Tone.Transport.seconds;
-      this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
+      this.buffer = await this.audioBank.getToneBuffer(this.fileUri, this.timeStretchRatio, this.offset, this.duration);
     }
   }
 
@@ -283,8 +287,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.loading) {
       await this.loading;
     }
-
-    const l = Tone.Transport.seconds;
 
     if (!this.buffer) {
       console.warn("buffer not loaded in time");
@@ -336,10 +338,6 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
       //end events only updated once buffer is there and scheduled
       this.updateEndEvents();
-
-      /*const s = Tone.Transport.seconds;
-      console.log("TIM", "L", l, "S", s);
-      console.log("DEL", "L", l-this.loadTime, "S", s-l, "P", s-this.playTime);*/
     }
   }
 

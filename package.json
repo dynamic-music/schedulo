@@ -8,7 +8,8 @@
     "Tone.d.ts"
   ],
   "scripts": {
-    "test": "mocha test/*.spec.ts --require ts-node/register",
+    "test": "npm run build && php -S localhost:8888",
+    "testMocha": "mocha test/*.spec.ts --require ts-node/register",
     "prepare": "npm run build",
     "build": "tsc && webpack ./lib/test.js bundle.js"
   },
@@ -22,6 +23,7 @@
     "@types/mocha": "^2.2.44",
     "chai": "^4.1.2",
     "mocha": "^4.0.1",
+    "soundtouch-js": "github:florianthalmann/soundtouch-js",
     "ts-node": "^3.3.0",
     "typescript": "^2.9.2",
     "webpack": "^3.8.1"

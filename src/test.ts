@@ -10,10 +10,18 @@ import {
 //import { ManagedAudioEvent } from './life-cycle';
 
 //testScheduleAtSameTime();
-testEvents()
+testTimestretch()
+
+async function testTimestretch() {
+  const schedulo = new Schedulo();
+  const audioObject = (await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(1), Playback.Oneshot()))[0];
+  audioObject.set(Parameter.TimeStretchRatio, 0.7);
+  audioObject.set(Parameter.Offset, 0.1);
+  audioObject.set(Parameter.Duration, 1.1);
+}
 
 async function testEvents() {
-  let schedulo = new Schedulo();
+  const schedulo = new Schedulo();
   await schedulo.scheduleEvent(() => console.log("YO"), Time.At(1));
   await schedulo.scheduleEvent(() => console.log("YA"), Time.At(1.5));
 }
