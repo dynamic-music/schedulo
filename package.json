@@ -23,13 +23,12 @@
     "@types/mocha": "^2.2.44",
     "chai": "^4.1.2",
     "mocha": "^4.0.1",
-    "soundtouch-js": "github:florianthalmann/soundtouch-js",
     "ts-node": "^3.3.0",
     "typescript": "^2.9.2",
     "webpack": "^3.8.1"
   },
   "dependencies": {
-    "rxjs": "^5.5.2",
+    "soundtouch-js": "github:florianthalmann/soundtouch-js",
     "tone": "^13.1.6"
   }
 }
