@@ -12,7 +12,7 @@ export class TimeStretcher {
 
   getStretchedTrimmedBuffer(buffer: AudioBuffer, stretchRatio: number, offset: number, duration: number) {
     //trim if buffer too long
-    if (offset != 0 || (duration && duration < buffer.duration)) {
+    if ((offset && offset != 0) || (duration && duration < buffer.duration)) {
       if (stretchRatio != 1) {
         //get too much cause of shitty timestretch algorithm
         duration += this.TIMESTRETCH_BUFFER_ZONE;
@@ -26,7 +26,7 @@ export class TimeStretcher {
   }
 
   private getStretchedBuffer(buffer: AudioBuffer, duration: number, stretchRatio: number) {
-    if (stretchRatio != 1) {
+    if (stretchRatio && stretchRatio != 1) {
       buffer = this.soundTouchTimeStretch(buffer, stretchRatio);
       if (duration) {
         //trim it down again
@@ -39,7 +39,7 @@ export class TimeStretcher {
   }
 
   private getSubBuffer(buffer: AudioBuffer, fromSample: number, durationInSamples: number) {
-    console.log(buffer, buffer.numberOfChannels, buffer.length, fromSample, durationInSamples, buffer.sampleRate)
+    //console.log(buffer, buffer.numberOfChannels, buffer.length, fromSample, durationInSamples, buffer.sampleRate)
     var samplesToCopy = Math.min(buffer.length-fromSample, durationInSamples);
     var subBuffer = this.audioContext.createBuffer(buffer.numberOfChannels, samplesToCopy, buffer.sampleRate);
     for (var i = 0; i < buffer.numberOfChannels; i++) {

@@ -5,6 +5,7 @@ import { ScheduloObject, AudioObject, EventObject, Parameter, ScheduleTime,
 import { AudioBank } from './audio-bank';
 import { DynamicBufferLifeCycle, LifeCycleWindow, SingleOrMultiValueDispatcher,
   StoredValueHandler, IDisposable, IEvent } from './life-cycle';
+import { TimeStretcher } from './timestretcher';
 
 export abstract class TonejsScheduledObject extends Tone.Emitter implements ScheduloObject {
   protected scheduledEvents: Map<string, IEvent> = new Map();
@@ -191,7 +192,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     } else if (param === Parameter.TimeStretchRatio && this.timeStretchRatio != value && !this.buffer) {
       this.timeStretchRatio = <number>value;
       this.updateEndEvents();
-    } else if (param === Parameter.Offset && this.offset != value) {
+    } else if (param === Parameter.Offset && this.offset != value && !this.buffer) {
       this.offset = <number>value;
     }
   }
@@ -212,9 +213,9 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   getDuration() {
     if (this.duration) {
       return this.duration*this.durationRatio;
-    } else if (this.buffer) {
+    }/* else if (this.buffer) {
       return (this.buffer.duration - this.offset)*this.durationRatio;
-    }
+    }*/
     return 0;
   }
 
@@ -227,7 +228,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
       this.schedTime = this.toFutureTime(
         this.playTime - this.timings.connectToGraph.countIn);
-      //console.log(loadTime-Tone.Transport.seconds, scheduleTime-loadTime, startTime-scheduleTime)
+      console.log(this.loadTime-Tone.Transport.seconds, this.schedTime-this.loadTime, this.playTime-this.schedTime)
       this.scheduling = this.scheduleEvent('scheduled', this.schedTime, this.initAndSchedulePlayer.bind(this));
       this.scheduleEvent('playing', this.playTime, this.enterPlayState.bind(this));
     }
@@ -268,7 +269,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private async initBuffer() {
     if (this.fileUri) {
       const t = Tone.Transport.seconds;
-      this.buffer = await this.audioBank.getToneBuffer(this.fileUri, this.timeStretchRatio, this.offset, this.duration);
+      this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
     }
   }
 
@@ -313,7 +314,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       panner.connect(this.audioGraph.get(REVERB));
       panner.connect(this.audioGraph.get(DELAY));
 
-      const player = new Tone.Player(this.buffer);
+      const processedBuffer = new TimeStretcher(Tone.context, this.fadeLength)
+          .getStretchedTrimmedBuffer(this.buffer.get(), this.timeStretchRatio, this.offset, this.getDuration());
+
+      const player = new Tone.Player(new Tone.Buffer(processedBuffer));
       this.audioGraph.set(PLAYER, player);
 
       /*const player = new Tone.GrainPlayer(this.buffer);
@@ -323,7 +327,8 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.audioGraph.set(PLAYER, player);*/
 
       let offsetCorr = Math.min(this.offset, (this.fadeLength/2));
-      player.sync().start(this.playTime-offsetCorr, this.offset-offsetCorr);//no duration given, makes it dynamic
+      player.sync().start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
+
       player.connect(panner);
       player.fadeIn = this.fadeLength;
       player.fadeOut = this.fadeLength;

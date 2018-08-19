@@ -59,7 +59,7 @@ export class Schedulo implements Scheduler {
 
   constructor(private timings = defaultAudioTimings, private fadeLength = 0.01) {
     const bufferWindow = timings.loadBuffer.countIn+timings.loadBuffer.countOut;
-    this.audioBank = new AudioBank(bufferWindow, fadeLength);
+    this.audioBank = new AudioBank(bufferWindow);
     this.reverb = new Tone.Freeverb().toMaster();
     this.delay = new Tone.FeedbackDelay(0.5, 0.6).toMaster();
     //this.reverb = new Tone.Volume(0);

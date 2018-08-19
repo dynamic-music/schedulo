@@ -1,12 +1,10 @@
 import * as Tone from 'tone';
-import { TimeStretcher } from './timestretcher';
 
 export class AudioBank {
 
-  constructor(private minUnusedTime: number, private fadeLength: number) {}
+  constructor(private minUnusedTime: number) {}
 
   private buffers = new Map<string, AudioBuffer>();
-  private stretchedBuffers = new Map<string, Map<number, AudioBuffer>>();
   private lastRequested = new Map<string, number>();
 
   preloadBuffers(filePaths: string[]): Promise<any> {
@@ -19,7 +17,7 @@ export class AudioBank {
   }
 
   /** returns the corresponding tone buffer and loads it if necessary */
-  async getToneBuffer(filePath: string, stretchRatio?: number, offset?: number, duration?: number): Promise<ToneBuffer> {
+  async getToneBuffer(filePath: string): Promise<ToneBuffer> {
     this.lastRequested.set(filePath, Date.now());
     let buffer: AudioBuffer;
     if (!this.buffers.has(filePath)) {
@@ -28,10 +26,6 @@ export class AudioBank {
       this.buffers.set(filePath, buffer);
     }
     buffer = this.buffers.get(filePath);
-    if (stretchRatio != 1 || offset != null || duration != null) {
-      buffer = new TimeStretcher(Tone.context, this.fadeLength)
-        .getStretchedTrimmedBuffer(buffer, stretchRatio, offset, duration);
-    }
     return this.createToneBuffer(buffer);
   }
 
