@@ -228,7 +228,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     if (this.scheduledEvents.size > 0) {//simple way to check not cancelled
       this.schedTime = this.toFutureTime(
         this.playTime - this.timings.connectToGraph.countIn);
-      console.log(this.loadTime-Tone.Transport.seconds, this.schedTime-this.loadTime, this.playTime-this.schedTime)
+      //console.log(this.loadTime-Tone.Transport.seconds, this.schedTime-this.loadTime, this.playTime-this.schedTime)
       this.scheduling = this.scheduleEvent('scheduled', this.schedTime, this.initAndSchedulePlayer.bind(this));
       this.scheduleEvent('playing', this.playTime, this.enterPlayState.bind(this));
     }
