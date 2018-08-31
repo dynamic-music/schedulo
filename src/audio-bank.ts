@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { Observable, BehaviorSubject } from 'rxjs';
 
 export class AudioBank {
 
@@ -6,12 +7,30 @@ export class AudioBank {
 
   private buffers = new Map<string, AudioBuffer>();
   private lastRequested = new Map<string, number>();
+  private bufferCount: BehaviorSubject<number> = new BehaviorSubject(0);
+
+  private setBuffer(name: string, buffer: AudioBuffer) {
+    this.buffers.set(name, buffer);
+    this.updateBufferCount();
+  }
+
+  private deleteBuffer(name: string) {
+    this.buffers.delete(name);
+    this.updateBufferCount();
+  }
+
+  private updateBufferCount() {
+    this.bufferCount.next(this.buffers.size);
+  }
+
+  getBufferCount(): Observable<number> {
+    return this.bufferCount.asObservable();
+  }
 
   preloadBuffers(filePaths: string[]): Promise<any> {
     return Promise.all(filePaths.map(f => {
       if (!this.buffers.has(f)) {
-        this.createToneBuffer(f)
-          .then(b => this.buffers.set(f, b.get()))
+        this.createToneBuffer(f).then(b => this.setBuffer(f, b.get()))
       }
     }));
   }
@@ -23,7 +42,7 @@ export class AudioBank {
     if (!this.buffers.has(filePath)) {
       //TODO SOMEHOW TONEJS IS QUITE SLOW AT CREATING NEW BUFFERS!! (ca. 0.05s)
       buffer = (await this.createToneBuffer(filePath)).get();
-      this.buffers.set(filePath, buffer);
+      this.setBuffer(filePath, buffer);
     }
     buffer = this.buffers.get(filePath);
     return this.createToneBuffer(buffer);
@@ -36,7 +55,7 @@ export class AudioBank {
   freeBuffer(filePath: string) {
     const lastRequested = this.lastRequested.get(filePath);
     if (lastRequested && this.minUnusedTime*1000 < Date.now() - lastRequested) {
-      this.buffers.delete(filePath);
+      this.deleteBuffer(filePath);
     }
   }
 
