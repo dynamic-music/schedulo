@@ -141,7 +141,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       new StoredValueHandler({
         currentValue: 1.0,
         handler: (n: number) =>
-          (<Player>this.audioGraph.get(PLAYER)).playbackRate = n
+          this.getPlayer().playbackRate = n
       })
     );
     /*TODO for now time stretching made with playback rate held stable during playback
@@ -156,6 +156,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         }
       })
     );*/
+  }
+
+  private getPlayer(): Player {
+    return <Player>this.audioGraph.get(PLAYER);
   }
 
   private setGain(nodeName: string, value: number) {
@@ -199,7 +203,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   ramp(param: Parameter, value: number, duration: number | string, time: number | string): void {
     if (param === Parameter.Amplitude) {
-      (<Player>this.audioGraph.get(PLAYER)).volume.linearRampTo(value, duration, time);
+      this.getPlayer().volume.linearRampTo(value, duration, time);
     }
   }
 
@@ -210,13 +214,22 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     this.scheduleStopAndCleanup(Tone.Transport.seconds);
   }
 
-  getDuration() {
+  //actual duration when playing
+  getDuration(): number {
+    let duration = this.getBufferDuration()/this.timeStretchRatio;
+    if (this.getPlayer()) {
+      duration /= this.getPlayer().playbackRate;
+    }
+    return duration;
+  }
+
+  //duration of trimmed buffer
+  private getBufferDuration() {
     if (this.duration) {
       return this.duration*this.durationRatio;
-    }/* else if (this.buffer) {
+    } else if (this.buffer) {
       return (this.buffer.duration - this.offset)*this.durationRatio;
-    }*/
-    return 0;
+    }
   }
 
   private async updateStartEvents() {
@@ -315,7 +328,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       panner.connect(this.audioGraph.get(DELAY));
 
       const processedBuffer = new TimeStretcher(Tone.context, this.fadeLength)
-          .getStretchedTrimmedBuffer(this.buffer.get(), this.timeStretchRatio, this.offset, this.getDuration());
+        .getStretchedTrimmedBuffer(this.buffer.get(), this.timeStretchRatio, this.offset, this.getBufferDuration());
 
       const player = new Tone.Player(new Tone.Buffer(processedBuffer));
       this.audioGraph.set(PLAYER, player);
@@ -360,7 +373,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
 
   private stopPlayer() {
     this.exitPlayState();
-    const player = (<Player>this.audioGraph.get(PLAYER));
+    const player = this.getPlayer();
     if (player) {
       if (player.volume) {
         player.volume.rampTo(Tone.gainToDb(0), this.fadeLength);
