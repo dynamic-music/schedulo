@@ -280,10 +280,17 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   // most of these throw errors when appropriate to prevent events from emitting
 
   private async initBuffer() {
-    if (this.fileUri) {
-      const t = Tone.Transport.seconds;
+    const ignore = this.timings.loadBuffer.ignoreInaudible && !this.isAudible();
+    if (this.fileUri && !ignore) {
       this.buffer = await this.audioBank.getToneBuffer(this.fileUri);
     }
+  }
+
+  private isAudible(): boolean {
+    const amp = this.parameterDispatchers.get(Parameter.Amplitude).stored.currentValue;
+    const rev = this.parameterDispatchers.get(Parameter.Reverb).stored.currentValue;
+    const del = this.parameterDispatchers.get(Parameter.Delay).stored.currentValue;
+    return amp > 0 || rev > 0 || del > 0;
   }
 
   private async freeBuffer() {
@@ -303,9 +310,13 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
 
     if (!this.buffer) {
-      console.warn("buffer not loaded in time");
-      //increase load ahead time
-      this.increaseCountIn(this.timings.loadBuffer, 0.5);
+      if (this.timings.loadBuffer.ignoreInaudible) {
+        console.warn("buffer of inaudible object ignored");
+      } else {
+        console.warn("buffer not loaded in time");
+        //increase load ahead time
+        this.increaseCountIn(this.timings.loadBuffer, 0.5);
+      }
     } else if (this.playTime < Tone.Transport.seconds) {
       console.warn("scheduled too late", this.buffer);
       //increase schedule ahead time

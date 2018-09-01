@@ -1,5 +1,5 @@
 /// <reference path="../Tone.d.ts" />
-import {
+/*import {
   TonejsAudioObject as ToneAudioEvent
 } from './tone-object';
 import {
@@ -20,7 +20,7 @@ import {
   add,
   createBuffer,
   createPlayerFactoryWithBuffer
-} from './tone-helpers';
+} from './tone-helpers';*/
 import { Effects } from './schedulo';
 
 
@@ -28,6 +28,10 @@ export interface LifeCycleWindow {
   countIn: number;
   countOut: number;
   minCountIn: number;
+}
+
+export interface BufferLoadingWindow extends LifeCycleWindow {
+  ignoreInaudible: boolean
 }
 
 export interface TimeLimited {
@@ -42,7 +46,7 @@ export interface BufferLoader {
   fetch(): Promise<ToneBuffer>;
 }
 export interface DynamicBufferLifeCycle extends LifeCycleTimings {
-  loadBuffer: LifeCycleWindow;
+  loadBuffer: BufferLoadingWindow;
 }
 
 export interface IDisposable {
@@ -55,7 +59,7 @@ export interface IEvent extends IDisposable {
 
 export const defaultAudioTimings: DynamicBufferLifeCycle = {
   connectToGraph: {countIn: 2, countOut: 2, minCountIn: 0.1},
-  loadBuffer: {countIn: 5, countOut: 5, minCountIn: 1}
+  loadBuffer: {countIn: 5, countOut: 5, minCountIn: 1, ignoreInaudible: false}
 };
 
 export type LifeCycleStates<Timings extends TimeLimited> = keyof Timings;
@@ -105,7 +109,7 @@ export class StoredValueHandler<T> {
 
 // Tone.js won't schedule an event if it isn't in the future,
 // so this function checks against "now" and adds a small offset
-function calculateStartTime(ideal: number, now: number, delta: number = 0.1) {
+/*function calculateStartTime(ideal: number, now: number, delta: number = 0.1) {
   return ideal <= now ? now + delta : ideal;
 }
 
