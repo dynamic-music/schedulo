@@ -35,6 +35,11 @@ export class AudioBank {
     }));
   }
 
+  async getAudioBuffer(filePath: string): Promise<AudioBuffer> {
+    const toneBuffer = await this.getToneBuffer(filePath);
+    return toneBuffer.get();
+  }
+
   /** returns the corresponding tone buffer and loads it if necessary */
   async getToneBuffer(filePath: string): Promise<ToneBuffer> {
     this.lastRequested.set(filePath, Date.now());
@@ -48,10 +53,6 @@ export class AudioBank {
     return this.createToneBuffer(buffer);
   }
 
-  async getAudioBuffer(filePath: string): Promise<AudioBuffer> {
-    return (await this.getToneBuffer(filePath)).get();
-  }
-
   freeBuffer(filePath: string) {
     const lastRequested = this.lastRequested.get(filePath);
     if (lastRequested && this.minUnusedTime*1000 < Date.now() - lastRequested) {
@@ -61,6 +62,9 @@ export class AudioBank {
 
   private createToneBuffer(
       urlOrBuffer: string | AudioBuffer | undefined): Promise<ToneBuffer> {
+    if (urlOrBuffer instanceof AudioBuffer) {
+      return new Tone.Buffer(urlOrBuffer);
+    }
     return new Promise((resolve, reject) =>
       new Tone.Buffer(
         urlOrBuffer,

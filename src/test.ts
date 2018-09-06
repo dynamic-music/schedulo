@@ -10,7 +10,14 @@ import {
 //import { ManagedAudioEvent } from './life-cycle';
 
 //testScheduleAtSameTime();
-testTimestretch()
+testAudioBank()
+
+async function testAudioBank() {
+  const schedulo = new Schedulo();
+  console.log(await schedulo.getAudioBank())
+  console.log(await schedulo.getAudioBank().getAudioBuffer("./loops/long2.m4a"))
+  console.log(await schedulo.getAudioBank())
+}
 
 async function testTimestretch() {
   const schedulo = new Schedulo();

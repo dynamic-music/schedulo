@@ -1,6 +1,6 @@
 {
   "name": "schedulo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "main": "lib/index.js",
   "typings": "lib/index",
   "files": [
@@ -30,6 +30,6 @@
   "dependencies": {
     "rxjs": "^6.3.0",
     "soundtouch-js": "github:florianthalmann/soundtouch-js",
-    "tone": "^13.1.6"
+    "tone": "13.3.6"
   }
 }
