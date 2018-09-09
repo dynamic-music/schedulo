@@ -294,11 +294,10 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   }
 
   private async freeBuffer() {
-    if (!this.buffer) {
-      throw "no buffer to free";
+    if (this.buffer) {
+      this.buffer.dispose();
+      this.buffer = null;
     }
-    this.buffer.dispose();
-    this.buffer = null;
     this.audioBank.freeBuffer(this.fileUri);
     //completely done, so remove all events
     this.removeAllEvents();
