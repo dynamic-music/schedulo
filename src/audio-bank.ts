@@ -30,7 +30,7 @@ export class AudioBank {
   preloadBuffers(filePaths: string[]): Promise<any> {
     return Promise.all(filePaths.map(f => {
       if (!this.buffers.has(f)) {
-        this.createToneBuffer(f).then(b => this.setBuffer(f, b.get()))
+        return this.createToneBuffer(f).then(b => this.setBuffer(f, b.get()))
       }
     }));
   }
