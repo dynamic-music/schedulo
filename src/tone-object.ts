@@ -70,6 +70,7 @@ export abstract class TonejsScheduledObject extends Tone.Emitter implements Sche
 const PLAYER = "player";
 const PANNER = "panner";
 const DELAY = "delay";
+const FILTER = "filter";
 const REVERB = "reverb";
 
 export class TonejsAudioObject extends TonejsScheduledObject implements AudioObject {
@@ -86,6 +87,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
   private duration: number; // undefined means entire buffer is played
   private durationRatio = 1;
   private timeStretchRatio = 1;
+  private filterCutoff = 1;
 
   private loadTime: number;
   private schedTime: number;
@@ -99,6 +101,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     private fadeLength: number,
     private reverb: AudioNode,
     private delay: AudioNode,
+    private filter: AudioNode,
     startTime: RefTimeWithOnset
   ) {
     super(startTime, timings);
@@ -136,6 +139,13 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
         handler: (n: number) => this.setGain(DELAY, n)
       })
     );
+    /*this.parameterDispatchers.set(
+      Parameter.Filter,
+      new StoredValueHandler({
+        currentValue: 0.0,
+        handler: (n: number) => this.setGain(FILTER, n)
+      })
+    );*/
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
       new StoredValueHandler({
@@ -166,7 +176,7 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     const db = Tone.gainToDb(value);
     const volume = (<Volume>this.audioGraph.get(nodeName)).volume;
     if (volume) {
-      (<Volume>this.audioGraph.get(nodeName)).volume.value = db;
+      (<Volume>this.audioGraph.get(nodeName)).volume.linearRampTo(db, 0.01);
     }
   }
 
@@ -309,12 +319,14 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
     }
 
     if (!this.buffer) {
-      if (this.timings.loadBuffer.ignoreInaudible) {
-        console.warn("buffer of inaudible object ignored");
-      } else {
-        console.warn("buffer not loaded in time");
-        //increase load ahead time
-        this.increaseCountIn(this.timings.loadBuffer, 0.5);
+      if (this.fileUri) {
+        if (this.timings.loadBuffer.ignoreInaudible) {
+          console.warn("buffer of inaudible object ignored");
+        } else {
+          console.warn("buffer not loaded in time");
+          //increase load ahead time
+          this.increaseCountIn(this.timings.loadBuffer, 0.5);
+        }
       }
     } else if (this.playTime < Tone.Transport.seconds) {
       console.warn("scheduled too late", this.buffer);
@@ -332,10 +344,16 @@ export class TonejsAudioObject extends TonejsScheduledObject implements AudioObj
       this.audioGraph.set(DELAY, new Tone.Volume(0).connect(this.delay));
       //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
       const panner = Tone.context.createPanner();
-      panner.connect(Tone.Master);
       this.audioGraph.set(PANNER, panner);
       panner.connect(this.audioGraph.get(REVERB));
       panner.connect(this.audioGraph.get(DELAY));
+
+      /*if (this.fil) {
+        this.audioGraph.set(FILTER, new Tone.Volume(0).connect(this.filter));
+        panner.connect(Tone.Master);
+      } else {*/
+        panner.connect(Tone.Master);
+      //}
 
       const processedBuffer = new TimeStretcher(Tone.context, this.fadeLength)
         .getStretchedTrimmedBuffer(this.buffer.get(), this.timeStretchRatio, this.offset, this.getBufferDuration());

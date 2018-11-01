@@ -68,7 +68,11 @@ export class AudioBank {
     return new Promise((resolve, reject) =>
       new Tone.Buffer(
         urlOrBuffer,
-        (loaded: ToneBuffer) => resolve(loaded),
+        (loaded: ToneBuffer) => {
+          loaded = loaded.slice(0, loaded.duration-0.02); //TODO HACK FOR SEMANTIC MACHINE M4As!
+          console.log("loaded", urlOrBuffer)
+          resolve(loaded)
+        },
         (err: string) => reject(err)
       )
     );

@@ -77,6 +77,7 @@ interface ToneBuffer {
   get(): AudioBuffer;
   duration: number;
   dispose(): void;
+  slice(start: number, end: number): ToneBuffer; 
 } // TODO, currently incomplete
 
 interface AudioNode {
