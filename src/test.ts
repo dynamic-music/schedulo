@@ -10,7 +10,7 @@ import {
 //import { ManagedAudioEvent } from './life-cycle';
 
 //testScheduleAtSameTime();
-testAudioBank()
+testTimestretch()
 
 async function testAudioBank() {
   const schedulo = new Schedulo();
@@ -24,7 +24,11 @@ async function testTimestretch() {
   const audioObject = (await schedulo.scheduleAudio(["./loops/long2.m4a"], Time.At(1), Playback.Oneshot()))[0];
   audioObject.set(Parameter.TimeStretchRatio, 0.7);
   audioObject.set(Parameter.Offset, 0.1);
-  audioObject.set(Parameter.Duration, 1.1);
+  audioObject.set(Parameter.Duration, 2.6);
+  setTimeout(()=> {
+    console.log("SET")
+    audioObject.set(Parameter.Amplitude, 0.3);
+  }, 4500);
 }
 
 async function testEvents() {
@@ -57,7 +61,7 @@ async function testStopping() {
 
 async function testSubdiv() {
   let schedulo = new Schedulo();
-  schedulo.setTempo(170);
+  //schedulo.setTempo(170);
   setTimeout(async()=> {
     await schedulo.scheduleAudio(["./loops/2.m4a"], Time.Next(Subdivision.Bar), Playback.Oneshot());
     await schedulo.scheduleAudio(["./loops/1.m4a"], Time.In("1:2"), Playback.Oneshot());
@@ -70,8 +74,8 @@ async function test() {
   let id = await schedulo.scheduleAudio(["./loops/2.m4a"], Time.At(1), Playback.Oneshot());
   schedulo.scheduleEvent(() => console.log("EVENT"), Time.At(1.3));
   schedulo.scheduleAudio(["./loops/1.m4a"], Time.After(id), Playback.Oneshot());
-  schedulo.setLoop(0.5, 2.2);
-  setTimeout(()=>schedulo.setLoop(1.3,2.5), 5000);
+  /*schedulo.setLoop(0.5, 2.2);
+  setTimeout(()=>schedulo.setLoop(1.3,2.5), 5000);*/
 }
 
 async function testLongFileChop() {

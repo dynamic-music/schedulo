@@ -4,23 +4,16 @@ if (typeof window === 'undefined') {
   global.window = {};
 }
 
-import * as Tone from 'tone';
-import { Scheduler, ScheduloObject, AudioObject, EventObject, Subdivision,
-  ScheduleTime, ScheduleAt, ScheduleNext, ScheduleIn, ScheduleAfter,
-  ScheduleRelativeTo, PlaybackMode, TransitionMode, TransitionWithCrossfade,
-  StoppingMode, StopWithFadeOut, Parameter, RefTimeWithOnset } from './types';
-import { TonejsAudioObject, TonejsEventObject } from './tone-object';
-import {
-  //setupTonePlayers,
-  defaultAudioTimings,
-  LifeCycleTimings,
-  //ManagedAudioEvent,
-  //lazilySetupTonePlayers,
-  DynamicBufferLifeCycle
-} from './life-cycle';
+import { Scheduler, ScheduloObject, AudioObject, EventObject,
+  ScheduleTime, PlaybackMode, TransitionMode, TransitionWithCrossfade,
+  StoppingMode, StopWithFadeOut, Parameter } from './types';
+import { ScheduloEngine } from './engine/engine';
+import { OwnEngine } from './engine/own-engine';
+import { ToneEngine } from './engine/tone-engine';
+import { defaultAudioTimings } from './life-cycle';
 import { AudioBank } from './audio-bank';
 
-export type BufferLoadingScheme = 'preload' | 'dynamic';
+/*export type BufferLoadingScheme = 'preload' | 'dynamic';
 export interface LoadingConfig<
   Tag extends BufferLoadingScheme,
   Timings extends LifeCycleTimings
@@ -43,72 +36,41 @@ export type AdditionalOptions = DynamicConfig;
 export const defaultOptions: AdditionalOptions = {
   timings: defaultAudioTimings,
   bufferScheme: 'dynamic'
-};
+};*/
 
 export interface Effects {
   reverb: AudioNode;
   delay: AudioNode;
 }
 
+export enum Engines {
+  OwnEngine,
+  ToneEngine
+}
+
 export class Schedulo implements Scheduler {
 
   private scheduledObjects: ScheduloObject[] = [];
-  private audioBank: AudioBank;
-  private reverb: AudioNode;
-  private delay: AudioNode;
-  private filter: AudioNode;
+  private engine: ScheduloEngine;
 
-  constructor(private timings = defaultAudioTimings, private fadeLength = 0.01) {
-    const bufferWindow = timings.loadBuffer.countIn+timings.loadBuffer.countOut;
-    this.audioBank = new AudioBank(bufferWindow);
-    this.reverb = new Tone.Freeverb().toMaster();
-    this.delay = new Tone.FeedbackDelay(0.47, 0.6).toMaster();
-    this.filter = new Tone.Filter(200, "lowpass").toMaster();
-    this.start();
+  constructor(timings = defaultAudioTimings, fadeLength = 0.01, useTone = false) {
+    const engineClass = useTone ? ToneEngine : OwnEngine;
+    this.engine = new engineClass(fadeLength, timings);
+    this.engine.start();
   }
 
   getAudioBank(): AudioBank {
-    return this.audioBank;
-  }
-
-  setLoop(start: number, stop: number): void {
-    Tone.Transport.loop = true;
-    Tone.Transport.loopStart = start;
-    Tone.Transport.loopEnd = stop;
-  }
-
-  setTempo(bpm: number): void {
-    Tone.Transport.bpm.value = bpm;
-  }
-
-  setMeter(numerator: number, denominator: number): void {
-    Tone.Transport.timeSignature = [numerator, denominator];
-  }
-
-  private start(): void {
-    Tone.Transport.start("+0.1");
-  }
-
-  /** pauses if not paused, resumes otherwise */
-  pause(): void {
-    if (Tone.Transport.state == "started") {
-      Tone.Transport.pause("+0.1");
-    } else if (Tone.Transport.state == "paused") {
-      this.start();
-    }
+    return this.engine.getAudioBank();
   }
 
   scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[] {
-    let times = this.calculateScheduleTime(startTime);
-    const objects = fileUris.map(f =>
-      new TonejsAudioObject(f, this.audioBank, this.timings, this.fadeLength, this.reverb, this.delay, this.filter, times));
+    const objects = fileUris.map(f => this.engine.createAudioObject(f, startTime));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
 
-  scheduleEvent(triggerFunction: () => any, time: ScheduleTime): EventObject {
-    let startTime = this.calculateScheduleTime(time);
-    return new TonejsEventObject(triggerFunction, startTime, this.timings);
+  scheduleEvent(triggerFunction: () => any, startTime: ScheduleTime): EventObject {
+    return this.engine.createEventObject(triggerFunction, startTime);
   }
 
   transition(from: AudioObject[], toAudioFiles: string[], startTime: ScheduleTime, mode: TransitionMode, playbackMode: PlaybackMode): AudioObject[] {
@@ -132,44 +94,8 @@ export class Schedulo implements Scheduler {
   }
 
   private calcAbsoluteSchedTime(time: ScheduleTime): number {
-    let absTime = this.calculateScheduleTime(time);
+    let absTime = this.engine.calculateScheduleTime(time);
     return absTime.ref + absTime.onset;
   }
 
-  //pair of ref and time
-  private calculateScheduleTime(time: ScheduleTime): RefTimeWithOnset {
-    if (time instanceof ScheduleAfter) {
-      // TODO this isn't going to work for objects with an indeterminate duration.
-      // This is only really complicated by the fact that we want to be able to
-      // loop audio continuiously, i.e. n repeats is not known ahead of time.
-      // Looping will eventually stop based on some external event, and so
-      // at some unknown point in the future, it eventually ends.
-      // Unfortunately, unless it is possible to obtain the explicit eventual
-      // stop time prior to it occuring, there is going to be a delay in scheduling
-      // the next event. Either way, we can't know any time upfront...
-      // so this needs rethinking
-      return {ref: new Tone.Time(calculateEndTime(time.objects)).toSeconds()-this.fadeLength};
-    } else if (time instanceof ScheduleRelativeTo) {
-      //const diff = new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
-      //console.log("CALC", this.timings.connectToGraph.countIn)
-      let delta = new Tone.Time(time.delta).toSeconds();
-      return {ref: time.object.getScheduleTime(), onset: delta};
-    } else if (time instanceof ScheduleAt) {
-      //adjust to changing count in!!
-      return {ref: new Tone.Time(time.at).toSeconds()};
-    } else if (time instanceof ScheduleNext) {
-      let subdiv = time.next === Subdivision.Bar ? "1m" : "1n";
-      return {ref: Tone.Transport.nextSubdivision(subdiv)};
-    } else if (time instanceof ScheduleIn) {
-      return {ref: Tone.Transport.nextSubdivision(time.inn)};
-    } else { //instanceof Asap!!
-      return {ref: Tone.Transport.seconds};
-    }
-  }
-}
-
-//TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
-function calculateEndTime(objects: ScheduloObject[]): string | number {
-  let endTimes = objects.map(o => o.getScheduleTime()+o.getDuration());
-  return Math.max(...endTimes);
 }

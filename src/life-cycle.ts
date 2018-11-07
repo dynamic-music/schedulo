@@ -54,7 +54,20 @@ export interface IDisposable {
 }
 
 export interface IEvent extends IDisposable {
+  start(time: number): void;
   cancel(): void;
+}
+
+export interface IEmitter<EventTypes, FArgs> { // TODO no varaidic args, so this is too restrictive
+  dispose(): this;
+  emit(event: EventTypes, ...args: FArgs[]): this;
+  off(event: EventTypes, callback?: (...args: FArgs[]) => void): this;
+  on(event: EventTypes, callback: (...args: FArgs[]) => void): this;
+}
+
+export interface Emitter<T> {
+  new(): IEmitter<string, any>;
+  mixin(obj: T): T & IEmitter<string, any>;
 }
 
 export const defaultAudioTimings: DynamicBufferLifeCycle = {

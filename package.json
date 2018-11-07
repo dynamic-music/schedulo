@@ -30,6 +30,7 @@
   "dependencies": {
     "rxjs": "^6.3.0",
     "soundtouch-js": "github:florianthalmann/soundtouch-js",
-    "tone": "13.3.6"
+    "tone": "^13.3.6",
+    "web-audio-scheduler": "^1.4.0"
   }
 }

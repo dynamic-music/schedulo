@@ -132,8 +132,8 @@ export interface EventObject extends ScheduloObject {}
 
 export interface Scheduler {
 
-  setTempo(bpm: number): void;
-  setMeter(numerator: number, denominator: number): void;
+  //setTempo(bpm: number): void;
+  //setMeter(numerator: number, denominator: number): void;
 
   scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[];
   scheduleEvent(trigger: () => any, startTime: ScheduleTime): EventObject;
