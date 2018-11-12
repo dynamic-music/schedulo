@@ -6,7 +6,7 @@ if (typeof window === 'undefined') {
 
 import { Scheduler, ScheduloObject, AudioObject, EventObject,
   ScheduleTime, PlaybackMode, TransitionMode, TransitionWithCrossfade,
-  StoppingMode, StopWithFadeOut, Parameter } from './types';
+  StoppingMode, StopWithFadeOut, Parameter, Fetcher } from './types';
 import { ScheduloEngine } from './engine/engine';
 import { OwnEngine } from './engine/own-engine';
 import { ToneEngine } from './engine/tone-engine';
@@ -53,10 +53,14 @@ export class Schedulo implements Scheduler {
   private scheduledObjects: ScheduloObject[] = [];
   private engine: ScheduloEngine;
 
-  constructor(timings = defaultAudioTimings, fadeLength = 0.01, useTone = false) {
-    const engineClass = useTone ? ToneEngine : OwnEngine;
-    this.engine = new engineClass(fadeLength, timings);
+  constructor(timings = defaultAudioTimings, fadeLength = 0.1, fetcher?: Fetcher, useTone = false) {
+    this.engine = useTone ? new ToneEngine(fadeLength, timings) :
+      new OwnEngine(fadeLength, timings, fetcher);
     this.engine.start();
+  }
+
+  pause(): void {
+    this.engine.pause();
   }
 
   getAudioBank(): AudioBank {

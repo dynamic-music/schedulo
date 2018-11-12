@@ -199,7 +199,7 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
     }
     if (duration) {
       if (this.fileUri && (this.fileUri.indexOf("m4a") > 0 || this.fileUri.indexOf("mp3") > 0)) {
-        duration -= 1.02;//compensate for silence at end of files
+        duration -= 0.02;//compensate for silence at end of files
       }
       return duration;
     }
@@ -346,7 +346,6 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
   }
 
   protected getProcessedBuffer() {
-    console.log("PROCESSED", this.getBufferDuration())
     return new TimeStretcher(this.engine.getAudioContext(), this.engine.getFadeLength())
       .getStretchedTrimmedBuffer(this.buffer, this.timeStretchRatio, this.offset, this.getBufferDuration());
   }

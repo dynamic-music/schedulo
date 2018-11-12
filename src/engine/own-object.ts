@@ -41,6 +41,11 @@ class OwnEmitter implements IEmitter<string, any> {
   }
 }
 
+interface WebAudioSchedulerTime {
+  playbackTime: number,
+  args: any[]
+}
+
 class OwnEvent implements IEvent {
 
   private eventId: number;
@@ -49,7 +54,8 @@ class OwnEvent implements IEvent {
     private task: (time: number) => void) {}
 
   start(time: number) {
-    this.eventId = this.scheduler.insert(time, this.task);
+    this.eventId = this.scheduler.insert(time, (t: WebAudioSchedulerTime) =>
+      this.task(t.playbackTime));
   }
 
   cancel() {
@@ -159,8 +165,9 @@ export class OwnAudioObject extends ScheduledAudioObject {
 
     let offsetCorr = Math.min(this.offset, (this.engine.getFadeLength()/2));
 
-    //TODO SCHEDULE THIS!!!!!?
-    source.start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
+    //console.log("PLAY", this.playTime, offsetCorr, this.playTime-offsetCorr)
+    this.scheduler.insert(this.playTime-offsetCorr, () => source.start(0));
+    //source.start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
   }
 
   protected stopPlayer() {

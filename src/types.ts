@@ -1,3 +1,11 @@
+export interface Fetcher {
+
+  fetchText(url: string): Promise<string>;
+  fetchJson(url: string): Promise<{}>;
+  fetchArrayBuffer(url: string): Promise<ArrayBuffer>;
+
+}
+
 export enum Subdivision { Beat, Bar }
 
 //schedule time
@@ -134,6 +142,8 @@ export interface Scheduler {
 
   //setTempo(bpm: number): void;
   //setMeter(numerator: number, denominator: number): void;
+
+  pause(): void;
 
   scheduleAudio(audioFiles: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[];
   scheduleEvent(trigger: () => any, startTime: ScheduleTime): EventObject;

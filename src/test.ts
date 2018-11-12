@@ -10,7 +10,7 @@ import {
 //import { ManagedAudioEvent } from './life-cycle';
 
 //testScheduleAtSameTime();
-testTimestretch()
+testScheduleAfter()
 
 async function testAudioBank() {
   const schedulo = new Schedulo();
@@ -108,20 +108,25 @@ async function testLoopMultipleMaxPeriod(startTime: number = 1) {
 async function testScheduleAfter() {
   const schedulo = new Schedulo();
   const one = await schedulo.scheduleAudio(
-    ['./loops/short.wav'],
-    Time.At(1),
-    Playback.Loop(2)
-  );
-  const two = await schedulo.scheduleAudio(
     ['./loops/1.m4a'],
-    Time.After(one),
-    Playback.Oneshot()
+    Time.At(1),
+    Playback.Oneshot()//Loop(2)
   );
-  await schedulo.scheduleAudio(
-    ['./loops/short.wav'],
-    Time.After(two),
-    Playback.Oneshot()
-  );
+  one[0].on('loaded', async () => {
+    const two = await schedulo.scheduleAudio(
+      ['./loops/1.m4a'],
+      Time.After(one),
+      Playback.Oneshot()
+    );
+    two[0].on('loaded', async () => {
+      schedulo.scheduleAudio(
+        ['./loops/1.m4a'],
+        Time.After(two),
+        Playback.Oneshot()
+      );
+    })
+  })
+
 }
 
 async function testChangeAmplitude() {

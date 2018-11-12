@@ -1,7 +1,7 @@
 import * as WebAudioScheduler from 'web-audio-scheduler';
 import { DynamicBufferLifeCycle } from '../life-cycle';
 import { ScheduleTime, ScheduleAt, ScheduleAfter,
-  ScheduleRelativeTo, RefTimeWithOnset } from '../types';
+  ScheduleRelativeTo, RefTimeWithOnset, Fetcher } from '../types';
 import { ScheduloEngine } from './engine';
 import { OwnAudioObject, OwnEventObject } from './own-object';
 
@@ -14,7 +14,7 @@ export class OwnEngine extends ScheduloEngine {
   private audioContext: AudioContext;
   private scheduler: WebAudioScheduler;
 
-  constructor(fadeLength: number, timings: DynamicBufferLifeCycle) {
+  constructor(fadeLength: number, timings: DynamicBufferLifeCycle, private fetcher?: Fetcher) {
     super(fadeLength, timings);
     this.audioContext = new (AudioContext || webkitAudioContext)();
     this.scheduler = new WebAudioScheduler({ context: this.audioContext });
@@ -66,11 +66,14 @@ export class OwnEngine extends ScheduloEngine {
   }
 
   async loadBuffer(filePath: string): Promise<AudioBuffer> {
-    const response = await fetch(filePath, {
-      headers: { "Content-Type": "application/json; charset=utf-8" }
-    });
+    let arrayBuffer: ArrayBuffer;
+    if (this.fetcher) {
+      arrayBuffer = await this.fetcher.fetchArrayBuffer(filePath);
+    } else {
+      arrayBuffer = await (await fetch(filePath)).arrayBuffer();
+    }
     return new Promise<AudioBuffer>(async (res, rej) =>
-      this.audioContext.decodeAudioData(await response.arrayBuffer(), res, rej)
+      this.audioContext.decodeAudioData(arrayBuffer, res, rej)
     );
   }
 
