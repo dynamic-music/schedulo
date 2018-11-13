@@ -4,6 +4,7 @@ import { DynamicBufferLifeCycle, IEvent, IEmitter, SingleOrMultiValueDispatcher,
   StoredValueHandler, LifeCycleWindow } from '../life-cycle';
 import { ScheduloEngine } from './engine';
 import { TimeStretcher } from './timestretcher';
+import { OwnAudioObject } from './own-object';
 
 export abstract class EventHandler {
 
@@ -346,8 +347,10 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
   }
 
   protected getProcessedBuffer() {
-    return new TimeStretcher(this.engine.getAudioContext(), this.engine.getFadeLength())
-      .getStretchedTrimmedBuffer(this.buffer, this.timeStretchRatio, this.offset, this.getBufferDuration());
+    return new TimeStretcher(this.engine.getAudioContext(),
+        this.engine.getFadeLength(), this instanceof OwnAudioObject)
+      .getStretchedTrimmedBuffer(this.buffer, this.timeStretchRatio,
+        this.offset, this.getBufferDuration());
   }
 
   protected async freeBuffer() {

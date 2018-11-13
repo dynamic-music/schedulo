@@ -8,7 +8,7 @@ export class TimeStretcher {
   private readonly BUFFER_SIZE = 1024;
   private readonly TIMESTRETCH_BUFFER_ZONE = 0.3; //seconds
 
-  constructor(private audioContext: AudioContext, private fadeLength: number) {}
+  constructor(private audioContext: AudioContext, private fadeLength: number, private addFades: boolean) {}
 
   getStretchedTrimmedBuffer(buffer: AudioBuffer, stretchRatio: number, offset: number, duration: number) {
     //trim if buffer too long
@@ -22,10 +22,12 @@ export class TimeStretcher {
       }
       buffer = this.getSubBuffer(buffer, this.toSamples(offset, buffer), this.toSamples(duration, buffer));
     }
-    return this.getStretchedBuffer(buffer, duration, stretchRatio);
+    buffer = this.stretchBuffer(buffer, duration, stretchRatio);
+    if (this.addFades) this.fadeBuffer(buffer);
+    return buffer;
   }
 
-  private getStretchedBuffer(buffer: AudioBuffer, duration: number, stretchRatio: number) {
+  private stretchBuffer(buffer: AudioBuffer, duration: number, stretchRatio: number) {
     if (stretchRatio && stretchRatio != 1) {
       buffer = this.soundTouchTimeStretch(buffer, stretchRatio);
       if (duration) {
@@ -36,6 +38,17 @@ export class TimeStretcher {
       }
     }
     return buffer;
+  }
+
+  private fadeBuffer(buffer: AudioBuffer) {
+    var fadeSamples = buffer.sampleRate*this.fadeLength;
+    for (var i = 0; i < buffer.numberOfChannels; i++) {
+      var currentChannel = buffer.getChannelData(i);
+      for (var j = 0.0; j < fadeSamples; j++) {
+        currentChannel[j] *= j/fadeSamples;
+        currentChannel[buffer.length-j-1] *= j/fadeSamples;
+      }
+    }
   }
 
   private getSubBuffer(buffer: AudioBuffer, fromSample: number, durationInSamples: number) {

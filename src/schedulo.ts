@@ -53,7 +53,7 @@ export class Schedulo implements Scheduler {
   private scheduledObjects: ScheduloObject[] = [];
   private engine: ScheduloEngine;
 
-  constructor(timings = defaultAudioTimings, fadeLength = 0.1, fetcher?: Fetcher, useTone = false) {
+  constructor(timings = defaultAudioTimings, fadeLength = 0.01, fetcher?: Fetcher, useTone = false) {
     this.engine = useTone ? new ToneEngine(fadeLength, timings) :
       new OwnEngine(fadeLength, timings, fetcher);
     this.engine.start();
