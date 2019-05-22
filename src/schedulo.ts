@@ -8,9 +8,9 @@ import { Scheduler, ScheduloObject, AudioObject, EventObject,
   ScheduleTime, PlaybackMode, TransitionMode, TransitionWithCrossfade,
   StoppingMode, StopWithFadeOut, Parameter, Fetcher } from './types';
 import { ScheduloEngine } from './engine/engine';
-import { OwnEngine } from './engine/own-engine';
-import { ToneEngine } from './engine/tone-engine';
-import { defaultAudioTimings } from './life-cycle';
+//import { OwnEngine } from './engine/own-engine';
+//import { ToneEngine } from './engine/tone-engine';
+import { defaultAudioTimings, DynamicBufferLifeCycle } from './life-cycle';
 import { AudioBank } from './audio-bank';
 
 /*export type BufferLoadingScheme = 'preload' | 'dynamic';
@@ -43,19 +43,19 @@ export interface Effects {
   delay: AudioNode;
 }
 
-export enum Engines {
-  OwnEngine,
-  ToneEngine
-}
-
 export class Schedulo implements Scheduler {
 
   private scheduledObjects: ScheduloObject[] = [];
   private engine: ScheduloEngine;
 
   constructor(timings = defaultAudioTimings, fadeLength = 0.01, fetcher?: Fetcher, useTone = false) {
-    this.engine = useTone ? new ToneEngine(fadeLength, timings) :
-      new OwnEngine(fadeLength, timings, fetcher);
+    this.initEngine(timings, fadeLength, useTone, fetcher);
+  }
+  
+  async initEngine(timings: DynamicBufferLifeCycle, fadeLength: number, useTone: boolean, fetcher?: Fetcher) {
+    this.engine = useTone ?
+      new (await import('./engine/tone-engine')).ToneEngine(fadeLength, timings)
+      : new (await import('./engine/own-engine')).OwnEngine(fadeLength, timings, fetcher);
     this.engine.start();
   }
 
