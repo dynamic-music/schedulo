@@ -25,7 +25,7 @@ export abstract class EventHandler {
   }
 
   emit(event: ObjectStatus, args: number | string) {
-    console.log(event, args)
+    //console.log(event, args)
     this.emitter.emit(event, args);
   }
 
@@ -50,6 +50,12 @@ export abstract class ScheduledObject implements ScheduloObject {
 
   getScheduleTime() {
     return this.startTime.ref+this.startTime.onset;
+  }
+  
+  getEndTime() {
+    const time = this.getScheduleTime();
+    const duration = this.getDuration();
+    return duration ? time+duration : time;
   }
 
   protected updatePlayTime() {
@@ -125,6 +131,7 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
   protected buffer: AudioBuffer;
   protected audioGraph: Map<string,AudioNode> = new Map();
   protected parameterDispatchers: Map<Parameter, SingleOrMultiValueDispatcher> = new Map();
+  protected timestretcher: TimeStretcher;
   protected offset = 0;
   protected duration: number; // undefined means entire buffer is played
   protected durationRatio = 1;
@@ -144,9 +151,12 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
     timings: DynamicBufferLifeCycle,
     protected engine: ScheduloEngine,
     startTime: RefTimeWithOnset,
-    eventHandler: EventHandler
+    eventHandler: EventHandler,
+    addFades: boolean
   ) {
     super(startTime, timings, eventHandler);
+    this.timestretcher = new TimeStretcher(this.engine.getAudioContext(),
+        this.engine.getFadeLength(), addFades);
   }
 
   //to be called in constructors of inheriting classes
@@ -347,8 +357,7 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
   }
 
   protected getProcessedBuffer() {
-    return new TimeStretcher(this.engine.getAudioContext(),
-        this.engine.getFadeLength(), this instanceof OwnAudioObject)
+    return this.timestretcher
       .getStretchedTrimmedBuffer(this.buffer, this.timeStretchRatio,
         this.offset, this.getBufferDuration());
   }

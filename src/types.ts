@@ -126,6 +126,7 @@ export type ObjectStatus = 'scheduled' | 'disposed' | 'playing' | 'stopped' | 'l
 export interface ScheduloObject extends IEmitter<ObjectStatus, number | string> {
   getScheduleTime(): number,
   getDuration(): number,
+  getEndTime(): number,
   set(param: Parameter, value: number | number[]): void,
   stop(time: ScheduleTime, mode: StoppingMode): void
 }

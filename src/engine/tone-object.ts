@@ -35,7 +35,7 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     engine: ToneEngine,
     startTime: RefTimeWithOnset
   ) {
-    super(fileUri, timings, engine, startTime, new ToneEventHandler());
+    super(fileUri, timings, engine, startTime, new ToneEventHandler(), false);
     this.init();
   }
 

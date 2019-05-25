@@ -47,16 +47,21 @@ export class Schedulo implements Scheduler {
 
   private scheduledObjects: ScheduloObject[] = [];
   private engine: ScheduloEngine;
+  private ready: Promise<any>;
 
   constructor(timings = defaultAudioTimings, fadeLength = 0.01, fetcher?: Fetcher, useTone = false) {
-    this.initEngine(timings, fadeLength, useTone, fetcher);
+    this.ready = this.initEngine(timings, fadeLength, useTone, fetcher);
   }
   
-  async initEngine(timings: DynamicBufferLifeCycle, fadeLength: number, useTone: boolean, fetcher?: Fetcher) {
+  private async initEngine(timings: DynamicBufferLifeCycle, fadeLength: number, useTone: boolean, fetcher?: Fetcher) {
     this.engine = useTone ?
       new (await import('./engine/tone-engine')).ToneEngine(fadeLength, timings)
       : new (await import('./engine/own-engine')).OwnEngine(fadeLength, timings, fetcher);
     this.engine.start();
+  }
+  
+  async isReady() {
+    return this.ready;
   }
 
   pause(): void {

@@ -47,7 +47,7 @@ export abstract class ScheduloEngine {
 
   //TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
   protected calculateEndTime(objects: ScheduloObject[]): number {
-    let endTimes = objects.map(o => o.getScheduleTime()+o.getDuration());
+    let endTimes = objects.map(o => o.getEndTime());
     return Math.max(...endTimes);
   }
 

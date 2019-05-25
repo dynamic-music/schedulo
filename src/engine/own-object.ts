@@ -102,7 +102,7 @@ export class OwnAudioObject extends ScheduledAudioObject {
     startTime: RefTimeWithOnset,
     private scheduler: WebAudioScheduler
   ) {
-    super(fileUri, timings, engine, startTime, new OwnEventHandler(scheduler));
+    super(fileUri, timings, engine, startTime, new OwnEventHandler(scheduler), true);
     this.init();
   }
 
@@ -165,7 +165,7 @@ export class OwnAudioObject extends ScheduledAudioObject {
 
     let offsetCorr = Math.min(this.offset, (this.engine.getFadeLength()/2));
 
-    //console.log("PLAY", this.playTime, offsetCorr, this.playTime-offsetCorr)
+    console.log("PLAY", this.playTime, this.getDuration(), offsetCorr, this.playTime-offsetCorr)
     this.scheduler.insert(this.playTime-offsetCorr, () => source.start(0));
     //source.start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
   }
