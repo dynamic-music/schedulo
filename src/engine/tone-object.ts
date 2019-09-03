@@ -35,7 +35,7 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     engine: ToneEngine,
     startTime: RefTimeWithOnset
   ) {
-    super(fileUri, timings, engine, startTime, new ToneEventHandler(), false);
+    super(fileUri, timings, engine, startTime, new ToneEventHandler(), true);
     this.init();
   }
 
@@ -107,7 +107,7 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     this.exitPlayState();
     const player = this.getPlayer();
     if (player) {
-      this.setGain(NodeName.Player, 0, this.engine.getFadeLength());
+      //this.setGain(NodeName.Player, 0, this.engine.getFadeLength()); NOW ALWAYS FADING IN STRETCHER
       setTimeout(() => {
         //these calls often produce errors due to inconsistencies in tone
         try { player.unsync(); } catch (e) {};

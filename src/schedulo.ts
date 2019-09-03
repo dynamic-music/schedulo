@@ -71,14 +71,21 @@ export class Schedulo implements Scheduler {
   getAudioBank(): AudioBank {
     return this.engine.getAudioBank();
   }
+  
+  private resumeContextIfNeeded() {
+    if (this.engine.getAudioContext().state === 'suspended')
+      this.engine.getAudioContext().resume();
+  }
 
   scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[] {
+    this.resumeContextIfNeeded();
     const objects = fileUris.map(f => this.engine.createAudioObject(f, startTime));
     this.scheduledObjects = this.scheduledObjects.concat(objects);
     return objects;
   }
 
   scheduleEvent(triggerFunction: () => any, startTime: ScheduleTime): EventObject {
+    this.resumeContextIfNeeded();
     return this.engine.createEventObject(triggerFunction, startTime);
   }
 

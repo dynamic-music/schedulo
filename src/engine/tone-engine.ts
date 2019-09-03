@@ -59,7 +59,7 @@ export class ToneEngine extends ScheduloEngine {
       // stop time prior to it occuring, there is going to be a delay in scheduling
       // the next event. Either way, we can't know any time upfront...
       // so this needs rethinking
-      return {ref: new Tone.Time(this.calculateEndTime(time.objects)).toSeconds()-this.fadeLength};
+      return {ref: new Tone.Time(this.calculateEndTime(time.objects)).toSeconds()}//-this.fadeLength};
     } else if (time instanceof ScheduleRelativeTo) {
       //const diff = new Tone.Time(add(time.object.getStartTime(), time.delta)).toSeconds();
       //console.log("CALC", this.timings.connectToGraph.countIn)

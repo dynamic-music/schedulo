@@ -202,15 +202,12 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
 
   //duration of trimmed buffer
   private getBufferDuration() {
-    let duration: number;
-    if (this.duration) {
-      duration = this.duration*this.durationRatio;
-    } else if (this.bufferLoaded) {
-      duration = (this.buffer.duration - this.offset)*this.durationRatio;
-    }
-    if (duration) {
+    let duration = this.duration ? this.duration : this.bufferLoaded ?
+      this.buffer.duration - this.offset - this.engine.getFadeLength() : null;
+    if (duration != null) {
+      duration *= this.durationRatio;
       if (this.fileUri && (this.fileUri.indexOf("m4a") > 0 || this.fileUri.indexOf("mp3") > 0)) {
-        duration -= 0.02;//compensate for silence at end of files
+        //TODO CHECK THIS IN CASE OF SUBBUFFER!!!!!!!! duration -= 0.02;//compensate for silence at end of files
       }
       return duration;
     }
@@ -385,7 +382,7 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
           //increase load ahead time
           this.increaseCountIn(this.timings.loadBuffer, 0.5);
         }
-      }
+      } else console.warn("scheduled silent file");
     } else if (this.playTime < this.getNow()) {
       console.warn("scheduled too late", this.fileUri);
       //increase schedule ahead time
@@ -405,6 +402,8 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
           dispatcher.update();
         }
       });
+      
+      //console.log("SCHEDULED", this.buffer)
 
       this.isScheduled = true;
 
