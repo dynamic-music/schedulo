@@ -73,19 +73,25 @@ export class TonejsAudioObject extends ScheduledAudioObject {
   }
 
   protected async setupAudioGraphAndPlayer() {
-    this.audioGraph.set(NodeName.Reverb, new Tone.Volume(0).connect(this.engine.getReverb()));
-    this.audioGraph.set(NodeName.Delay, new Tone.Volume(0).connect(this.engine.getDelay()));
+    const reverb = new Tone.Volume(0);
+    this.audioGraph.set(NodeName.Reverb, reverb);
+    Tone.connect(reverb, this.engine.getReverb());
+    const delay = new Tone.Volume(0);
+    this.audioGraph.set(NodeName.Delay, delay);
+    Tone.connect(delay, this.engine.getDelay());
     //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
     const panner = Tone.context.createPanner();
     this.audioGraph.set(NodeName.Panner, panner);
-    panner.connect(this.audioGraph.get(NodeName.Reverb));
-    panner.connect(this.audioGraph.get(NodeName.Delay));
+    Tone.connect(panner, this.audioGraph.get(NodeName.Reverb));
+    Tone.connect(panner, this.audioGraph.get(NodeName.Delay));
 
     /*if (this.fil) {
-      this.audioGraph.set(FILTER, new Tone.Volume(0).connect(this.filter));
-      panner.connect(Tone.Master);
+      const filter = new Tone.Volume(0);
+      this.audioGraph.set(FILTER, filter);
+      Tone.connect(filter, this.filter)
+      Tone.connect(panner, Tone.Master);
     } else {*/
-      panner.connect(Tone.Master);
+      Tone.connect(panner, Tone.Master);
     //}
 
     const player = new Tone.Player(new Tone.Buffer(this.getProcessedBuffer()));
@@ -100,7 +106,7 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     let offsetCorr = Math.min(this.offset, (this.engine.getFadeLength()/2));
     player.sync().start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
 
-    player.connect(panner);
+    Tone.connect(player, panner);
   }
 
   protected stopPlayer() {
