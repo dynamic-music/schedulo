@@ -43,9 +43,13 @@ export class OwnEngine extends ScheduloEngine {
     return this.audioContext;
   }
   
-  setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ) {
+  setListenerOrientation(posX: number, posY: number, posZ: number, forwX: number, forwY: number, forwZ: number) {
     //DEPRECATED!
     //.setOrientation(posX, posY, posZ, forwX, forwY, forwZ);
+  }
+  
+  setListenerPosition(x: number, y: number, z: number) {
+    //implement...
   }
 
   start() {

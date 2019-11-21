@@ -77,8 +77,15 @@ export class Schedulo implements Scheduler {
       this.engine.getAudioContext().resume();
   }
   
-  setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ) {
+  setListenerOrientation(posX: number, posY: number, posZ: number,
+      forwX: number, forwY: number, forwZ: number) {
     this.engine.setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ);
+    console.log("orientation", posX, posY, posZ, forwX, forwY, forwZ)
+  }
+  
+  setListenerPosition(x: number, y: number, z: number) {
+    this.engine.setListenerPosition(x, y, z);
+    console.log("position", x, y, z)
   }
 
   scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[] {

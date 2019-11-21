@@ -18,8 +18,12 @@ export class ToneEngine extends ScheduloEngine {
     return Tone.context;
   }
   
-  setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ) {
+  setListenerOrientation(posX: number, posY: number, posZ: number, forwX: number, forwY: number, forwZ: number) {
     Tone.Listener.setOrientation(posX, posY, posZ, forwX, forwY, forwZ);
+  }
+  
+  setListenerPosition(x: number, y: number, z: number) {
+    Tone.Listener.setPosition(x, y, z);
   }
 
   start() {
