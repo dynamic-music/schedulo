@@ -76,6 +76,10 @@ export class Schedulo implements Scheduler {
     if (this.engine.getAudioContext().state === 'suspended')
       this.engine.getAudioContext().resume();
   }
+  
+  setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ) {
+    this.engine.setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ);
+  }
 
   scheduleAudio(fileUris: string[], startTime: ScheduleTime, mode: PlaybackMode): AudioObject[] {
     this.resumeContextIfNeeded();

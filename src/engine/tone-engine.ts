@@ -17,6 +17,10 @@ export class ToneEngine extends ScheduloEngine {
   getAudioContext() {
     return Tone.context;
   }
+  
+  setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ) {
+    Tone.Listener.setOrientation(posX, posY, posZ, forwX, forwY, forwZ);
+  }
 
   start() {
     Tone.Transport.start("+0.1");

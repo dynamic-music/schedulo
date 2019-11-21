@@ -44,6 +44,7 @@ export abstract class ScheduloEngine {
   abstract createEventObject(triggerFunction: () => any, startTime: ScheduleTime): EventObject;
   abstract calculateScheduleTime(time: ScheduleTime): RefTimeWithOnset;
   abstract loadBuffer(filePath: string): Promise<AudioBuffer>;
+  abstract setListenerOrientation(posX, posY, posZ, forwX, forwY, forwZ);
 
   //TODO GET RID OF THIS, NEEDS TO BE DYNAMIC, WITH DEPENDENCIES
   protected calculateEndTime(objects: ScheduloObject[]): number {
