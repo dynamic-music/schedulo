@@ -7,7 +7,9 @@ export abstract class ScheduloEngine {
   protected audioBank: AudioBank;
   protected reverb: AudioNode;
   protected delay: AudioNode;
-  protected filter: AudioNode;
+  protected lowpass: AudioNode;
+  protected highpass: AudioNode;
+  protected distortion: AudioNode;
   protected DELAY_TIME = 0.47;
   protected DELAY_FEEDBACK = 0.6;
 
@@ -32,8 +34,16 @@ export abstract class ScheduloEngine {
     return this.delay;
   }
 
-  getFilter() {
-    return this.filter;
+  getLowpass() {
+    return this.lowpass;
+  }
+  
+  getHighpass() {
+    return this.highpass;
+  }
+  
+  getDistortion() {
+    return this.distortion;
   }
 
   abstract getAudioContext(): AudioContext;

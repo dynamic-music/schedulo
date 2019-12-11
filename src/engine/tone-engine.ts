@@ -11,7 +11,9 @@ export class ToneEngine extends ScheduloEngine {
     super(fadeLength, timings);
     this.reverb = new Tone.Freeverb().toMaster();
     this.delay = new Tone.FeedbackDelay(this.DELAY_TIME, this.DELAY_FEEDBACK).toMaster();
-    this.filter = new Tone.Filter(200, "lowpass").toMaster();
+    this.lowpass = new Tone.Filter(200, "lowpass").toMaster();
+    this.highpass = new Tone.Filter(200, "highpass").toMaster();
+    this.distortion = new Tone.Distortion(1);
   }
 
   getAudioContext() {

@@ -117,7 +117,9 @@ export enum Parameter {
   Panning,
   Reverb,
   Delay,
-  Filter,
+  Lowpass,
+  Highpass,
+  Distortion,
   Loop,
   PlaybackRate,
   TimeStretchRatio

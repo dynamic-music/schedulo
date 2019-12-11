@@ -4,7 +4,6 @@ import { DynamicBufferLifeCycle, IEvent, IEmitter, SingleOrMultiValueDispatcher,
   StoredValueHandler, LifeCycleWindow } from '../life-cycle';
 import { ScheduloEngine } from './engine';
 import { TimeStretcher } from './timestretcher';
-import { OwnAudioObject } from './own-object';
 
 export abstract class EventHandler {
 
@@ -119,8 +118,10 @@ export enum NodeName {
   SourceGain = "sourceGain",
   Panner = "panner",
   Delay = "delay",
-  Filter = "filter",
-  Reverb = "reverb"
+  Reverb = "reverb",
+  Lowpass = "lowpass",
+  Highpass = "highpass",
+  Distortion = "distortion"
 }
 
 export abstract class ScheduledAudioObject extends ScheduledObject implements AudioObject {
@@ -243,13 +244,33 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
         handler: (n: number) => this.setGain(NodeName.Delay, n)
       })
     );
-    /*this.parameterDispatchers.set(
-      Parameter.Filter,
+    this.parameterDispatchers.set(
+      Parameter.Lowpass,
       new StoredValueHandler({
         currentValue: 0.0,
-        handler: (n: number) => this.setGain(FILTER, n)
+        handler: (n: number) => {
+          this.setGain(NodeName.Lowpass, n);
+          this.setGain(NodeName.Player, 1-n);
+        }
       })
-    );*/
+    );
+    this.parameterDispatchers.set(
+      Parameter.Highpass,
+      new StoredValueHandler({
+        currentValue: 0.0,
+        handler: (n: number) => {
+          this.setGain(NodeName.Highpass, n);
+          this.setGain(NodeName.Player, 1-n);
+        }
+      })
+    );
+    this.parameterDispatchers.set(
+      Parameter.Distortion,
+      new StoredValueHandler({
+        currentValue: 0.0,
+        handler: (n: number) => this.setGain(NodeName.Distortion, n)
+      })
+    );
     this.parameterDispatchers.set(
       Parameter.PlaybackRate,
       new StoredValueHandler({

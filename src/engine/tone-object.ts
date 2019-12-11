@@ -79,20 +79,22 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     const delay = new Tone.Volume(0);
     this.audioGraph.set(NodeName.Delay, delay);
     Tone.connect(delay, this.engine.getDelay());
+    const lowpass = new Tone.Volume(0);
+    this.audioGraph.set(NodeName.Lowpass, lowpass);
+    Tone.connect(lowpass, this.engine.getLowpass());
+    const highpass = new Tone.Volume(0);
+    this.audioGraph.set(NodeName.Highpass, highpass);
+    Tone.connect(highpass, this.engine.getHighpass());
+    const distortion = new Tone.Volume(0);
+    this.audioGraph.set(NodeName.Distortion, distortion);
+    Tone.connect(distortion, this.engine.getDistortion());
     //this.panner = new Tone.Panner3D(0, 0, 0).toMaster();
     const panner = Tone.context.createPanner();
     this.audioGraph.set(NodeName.Panner, panner);
     Tone.connect(panner, this.audioGraph.get(NodeName.Reverb));
     Tone.connect(panner, this.audioGraph.get(NodeName.Delay));
 
-    /*if (this.fil) {
-      const filter = new Tone.Volume(0);
-      this.audioGraph.set(FILTER, filter);
-      Tone.connect(filter, this.filter)
-      Tone.connect(panner, Tone.Master);
-    } else {*/
-      Tone.connect(panner, Tone.Master);
-    //}
+    Tone.connect(panner, Tone.Master);
 
     const player = new Tone.Player(new Tone.Buffer(this.getProcessedBuffer()));
     this.audioGraph.set(NodeName.Player, player);
