@@ -148,7 +148,7 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
   private scheduling: Promise<any>;
 
   constructor(
-    private fileUri: string,
+    protected fileUri: string,
     timings: DynamicBufferLifeCycle,
     protected engine: ScheduloEngine,
     startTime: RefTimeWithOnset,
@@ -250,7 +250,8 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
         currentValue: 0.0,
         handler: (n: number) => {
           this.setGain(NodeName.Lowpass, n);
-          this.setGain(NodeName.Player, 1-n);
+          n > 0 ? this.setGain(NodeName.Player, 0) : null;
+            //this.parameterDispatchers.get(Parameter.Amplitude).update();
         }
       })
     );
@@ -260,7 +261,8 @@ export abstract class ScheduledAudioObject extends ScheduledObject implements Au
         currentValue: 0.0,
         handler: (n: number) => {
           this.setGain(NodeName.Highpass, n);
-          this.setGain(NodeName.Player, 1-n);
+          n > 0 ? this.setGain(NodeName.Player, 0) : null;
+            //this.parameterDispatchers.get(Parameter.Amplitude).update();
         }
       })
     );

@@ -42,6 +42,7 @@ export class TonejsAudioObject extends ScheduledAudioObject {
   protected setGain(nodeName: string, value: number, rampTime?: number) {
     const db = Tone.gainToDb(value);
     const volume = (<Volume>this.audioGraph.get(nodeName)).volume;
+    if (value > 0) console.log(this.fileUri, nodeName, value);
     if (volume) {
       rampTime = rampTime ? rampTime : 0.01;
       (<Volume>this.audioGraph.get(nodeName)).volume.linearRampTo(db, rampTime);
@@ -93,6 +94,9 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     this.audioGraph.set(NodeName.Panner, panner);
     Tone.connect(panner, this.audioGraph.get(NodeName.Reverb));
     Tone.connect(panner, this.audioGraph.get(NodeName.Delay));
+    Tone.connect(panner, this.audioGraph.get(NodeName.Distortion));
+    Tone.connect(panner, this.audioGraph.get(NodeName.Lowpass));
+    Tone.connect(panner, this.audioGraph.get(NodeName.Highpass));
 
     Tone.connect(panner, Tone.Master);
 
@@ -105,7 +109,8 @@ export class TonejsAudioObject extends ScheduledAudioObject {
     player.loop = false;
     this.audioGraph.set(PLAYER, player);*/
 
-    let offsetCorr = Math.min(this.offset, (this.engine.getFadeLength()/2));
+    let offsetCorr = Math.min(this.offset > 0 ? this.offset : Infinity, this.engine.getFadeLength());
+    //console.log(this.playTime-offsetCorr, this.duration)
     player.sync().start(this.playTime-offsetCorr)//, this.offset-offsetCorr);//no duration given, makes it dynamic
 
     Tone.connect(player, panner);
